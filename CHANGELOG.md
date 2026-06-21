@@ -1,5 +1,27 @@
 # Changelog
 
+## [v2.M3] - Appeal Flow + Probation + Reporter Rewards - 2026-06-21
+### Added
+- Appeal storage and flows with `file_appeal`, `evaluate_appeal`, and `get_appeal`.
+- Probation tracking with timed promotion and harsher handling for probation reoffenders.
+- Reporter rewards, accounting, and leaderboard views.
+- UI support for filing appeals, showing probation, and viewing top reporters.
+
+### Changed
+- Slashes now split between the reporter reward and the penalty pool.
+- Overturned appeals restore owner balances and reconcile reporter accounting.
+
+### Fixed
+- Frozen states are no longer terminal when a valid appeal overturns the prior ruling.
+
+### Security
+- Appeals require owner authorization and a stake of at least 2x the most recent slash.
+
+### Evidence
+- before/after screenshots: `docs/evidence/m3/`
+- tests added: `tests/test_appeal.py`, `tests/test_probation.py`, `tests/test_rewards.py`
+- quantifiable metric: Watchtower now supports a complete report -> slash -> appeal -> probation -> reward lifecycle
+
 ## [v2.M2] - AI Consensus Upgrade: Multi-Source Behavior Aggregation - 2026-06-21
 ### Added
 - Multi-source audit collection across primary text, primary screenshot, web archive, wallet explorer, GitHub commits, and optional social signals.

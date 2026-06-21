@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { getGenLayerClient, CONTRACT_ADDRESS, RPC_URL, generatePrivateKey } from "./genlayerClient";
 import { AuditCard } from "./components/AuditCard";
+import { AppealModal } from "./components/AppealModal";
+import { ProbationBadge } from "./components/ProbationBadge";
+import { ReporterLeaderboard } from "./components/ReporterLeaderboard";
 import "./App.css";
 
 interface AuditReport {
@@ -34,8 +37,18 @@ interface AgentState {
   status: string;
   registered_at: number;
   last_audit_at: number;
+  probation_until: number;
+  appeal_locked: boolean;
   audit_count: number;
   audit_ids: number[];
+}
+
+interface ReporterEntry {
+  address: string;
+  total_rewarded: number;
+  audit_count: number;
+  overturned_count: number;
+  score: number;
 }
 
 interface LogLine {
@@ -65,6 +78,7 @@ function App() {
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [activeAgentData, setActiveAgentData] = useState<AgentState | null>(null);
   const [activeAuditReports, setActiveAuditReports] = useState<AuditReport[]>([]);
+  const [topReporters, setTopReporters] = useState<ReporterEntry[]>([]);
 
   // Register Form
   const [regId, setRegId] = useState<string>("");
@@ -78,6 +92,8 @@ function App() {
   // Interaction Forms
   const [topUpAmount, setTopUpAmount] = useState<string>("250");
   const [reporterName, setReporterName] = useState<string>("watcher-alice");
+  const [appealStake, setAppealStake] = useState<string>("1000");
+  const [appealArgument, setAppealArgument] = useState<string>("");
 
   // Console Logs
   const [consoleLogs, setConsoleLogs] = useState<LogLine[]>([]);
@@ -135,6 +151,7 @@ function App() {
     if (activeAddress) {
       fetchPendingBalance(activeAddress);
     }
+    fetchTopReporters();
   }, [selectedAgentId, activeAddress]);
 
   // Auto-scroll console
@@ -175,6 +192,21 @@ function App() {
     } catch (e) {
       console.error("Failed to fetch pending balance", e);
       setPendingBalance(0);
+    }
+  };
+
+  const fetchTopReporters = async () => {
+    try {
+      const client = getGenLayerClient(privateKey);
+      const res = await client.readContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "get_top_reporters",
+        args: [5],
+      });
+      setTopReporters(JSON.parse(String(res)) as ReporterEntry[]);
+    } catch (e) {
+      console.error("Failed to fetch reporters", e);
+      setTopReporters([]);
     }
   };
 
@@ -321,6 +353,7 @@ function App() {
       await fetchAgentDetails(regId);
       await fetchPenaltyPool();
       await fetchPendingBalance(activeAddress);
+      await fetchTopReporters();
     } catch (err: any) {
       console.error(err);
       addLog(`[Register Error] ${err.message || err.toString()}`, "error");
@@ -352,6 +385,7 @@ function App() {
 
       addLog("[Top-up] Bond top-up confirmed successfully!", "success");
       await fetchAgentDetails(selectedAgentId);
+      await fetchTopReporters();
     } catch (err: any) {
       console.error(err);
       addLog(`[Top-up Error] ${err.message || err.toString()}`, "error");
@@ -406,6 +440,7 @@ function App() {
       await fetchAgentDetails(selectedAgentId);
       await fetchPenaltyPool();
       await fetchPendingBalance(activeAddress);
+      await fetchTopReporters();
       
       // Print verdict summary based on reloaded state
       const refreshedClient = getGenLayerClient(privateKey);
@@ -461,9 +496,36 @@ function App() {
       if (selectedAgentId) {
         await fetchAgentDetails(selectedAgentId);
       }
+      await fetchTopReporters();
     } catch (err: any) {
       console.error(err);
       addLog(`[Claim Error] ${err.message || err.toString()}`, "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileAppeal = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedAgentId || !appealArgument.trim() || !isPositiveIntegerString(appealStake)) return;
+    setIsLoading(true);
+    addLog(`[Appeal] Filing appeal for ${selectedAgentId} with stake ${appealStake}...`, "info");
+    try {
+      const client = getGenLayerClient(privateKey);
+      const txHash = await client.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "file_appeal",
+        args: [selectedAgentId, appealArgument],
+        value: BigInt(appealStake),
+      });
+      await client.waitForTransactionReceipt({ hash: txHash });
+      addLog("[Appeal] Appeal filed successfully.", "success");
+      setAppealArgument("");
+      await fetchAgentDetails(selectedAgentId);
+      await fetchPendingBalance(activeAddress);
+    } catch (err: any) {
+      console.error(err);
+      addLog(`[Appeal Error] ${err.message || err.toString()}`, "error");
     } finally {
       setIsLoading(false);
     }
@@ -718,6 +780,7 @@ function App() {
                   <span className={`status-badge ${activeAgentData.status.toLowerCase()}`}>
                     {activeAgentData.status}
                   </span>
+                  <ProbationBadge probationUntil={activeAgentData.probation_until} now={Math.floor(Date.now() / 1000)} />
                 </div>
 
                 <div className="bond-container">
@@ -832,6 +895,23 @@ function App() {
                 </section>
               </div>
 
+              {(activeAgentData.status === "FROZEN" || activeAgentData.status === "NEEDS_REVIEW") && !activeAgentData.appeal_locked && (
+                <section className="card" style={{ marginBottom: 0 }}>
+                  <h2 className="card-title">⚖️ File Appeal</h2>
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: "1rem" }}>
+                    Owners can challenge the latest ruling by staking value and supplying a counter-argument.
+                  </p>
+                  <AppealModal
+                    appealArgument={appealArgument}
+                    appealStake={appealStake}
+                    disabled={isLoading}
+                    onArgumentChange={setAppealArgument}
+                    onStakeChange={setAppealStake}
+                    onSubmit={handleFileAppeal}
+                  />
+                </section>
+              )}
+
               {/* Console Output simulator */}
               <section className="card" style={{ marginBottom: 0 }}>
                 <h2 className="card-title">
@@ -871,6 +951,11 @@ function App() {
                     {activeAuditReports.slice().reverse().map((audit) => <AuditCard key={audit.id} audit={audit} />)}
                   </div>
                 )}
+              </section>
+
+              <section className="card" style={{ marginBottom: 0 }}>
+                <h2 className="card-title">🏆 Reporter Leaderboard</h2>
+                <ReporterLeaderboard reporters={topReporters} />
               </section>
             </div>
           ) : (

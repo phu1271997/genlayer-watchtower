@@ -20,6 +20,18 @@ Generated from `contracts/watchtower.py`.
 - args: `value: int`
 - returns: `int`
 
+## `set_probation_length_seconds`
+
+- decorators: `gl.public.write`
+- args: `value: int`
+- returns: `int`
+
+## `set_reporter_reward_bps`
+
+- decorators: `gl.public.write`
+- args: `value: int`
+- returns: `int`
+
 ## `withdraw_penalty_pool`
 
 - decorators: `gl.public.write`
@@ -37,6 +49,24 @@ Generated from `contracts/watchtower.py`.
 - decorators: `gl.public.write`
 - args: `none`
 - returns: `int`
+
+## `try_promote_from_probation`
+
+- decorators: `gl.public.write`
+- args: `agent_id: str`
+- returns: `str`
+
+## `file_appeal`
+
+- decorators: `gl.public.write.payable`
+- args: `agent_id: str, argument: str`
+- returns: `str`
+
+## `evaluate_appeal`
+
+- decorators: `gl.public.write`
+- args: `appeal_id: int`
+- returns: `str`
 
 ## `audit`
 
@@ -62,6 +92,12 @@ Generated from `contracts/watchtower.py`.
 - args: `audit_id: int`
 - returns: `str`
 
+## `get_appeal`
+
+- decorators: `gl.public.view`
+- args: `appeal_id: int`
+- returns: `str`
+
 ## `list_audits_of_agent`
 
 - decorators: `gl.public.view`
@@ -79,3 +115,15 @@ Generated from `contracts/watchtower.py`.
 - decorators: `gl.public.view`
 - args: `owner: None`
 - returns: `int`
+
+## `get_reporter_stats`
+
+- decorators: `gl.public.view`
+- args: `owner: None`
+- returns: `str`
+
+## `get_top_reporters`
+
+- decorators: `gl.public.view`
+- args: `limit: int`
+- returns: `str`
