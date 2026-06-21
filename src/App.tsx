@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getGenLayerClient, CONTRACT_ADDRESS, RPC_URL, generatePrivateKey } from "./genlayerClient";
 import { AuditCard } from "./components/AuditCard";
 import { AppealModal } from "./components/AppealModal";
+import { AgentTimeline } from "./components/AgentTimeline";
 import { CategoryAdminPanel } from "./components/CategoryAdminPanel";
 import { CategoryDropdown } from "./components/CategoryDropdown";
 import { ProbationBadge } from "./components/ProbationBadge";
@@ -847,6 +848,7 @@ function App() {
                     />
                   </div>
                 </div>
+                <AgentTimeline auditIds={activeAgentData.audit_ids} />
 
                 <div style={{ marginTop: "1.5rem" }}>
                   <span className="form-label">Owner</span>
