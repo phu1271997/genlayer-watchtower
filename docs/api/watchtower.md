@@ -5,7 +5,7 @@ Generated from `contracts/watchtower.py`.
 ## `register_agent`
 
 - decorators: `gl.public.write.payable`
-- args: `agent_id: str, mandate: str, evidence_url: str, bond: int, agent_wallet_address: str, github_repo: str, social_url: str`
+- args: `agent_id: str, mandate: str, evidence_url: str, bond: int, category: str, agent_wallet_address: str, github_repo: str, social_url: str`
 - returns: `str`
 
 ## `top_up_bond`
@@ -31,6 +31,24 @@ Generated from `contracts/watchtower.py`.
 - decorators: `gl.public.write`
 - args: `value: int`
 - returns: `int`
+
+## `set_category_rubric`
+
+- decorators: `gl.public.write`
+- args: `category: str, rubric: str`
+- returns: `str`
+
+## `set_category_threshold`
+
+- decorators: `gl.public.write`
+- args: `category: str, threshold: int`
+- returns: `int`
+
+## `set_mandate_template`
+
+- decorators: `gl.public.write`
+- args: `category: str, template: str`
+- returns: `str`
 
 ## `withdraw_penalty_pool`
 
@@ -96,6 +114,12 @@ Generated from `contracts/watchtower.py`.
 
 - decorators: `gl.public.view`
 - args: `appeal_id: int`
+- returns: `str`
+
+## `get_categories`
+
+- decorators: `gl.public.view`
+- args: `none`
 - returns: `str`
 
 ## `list_audits_of_agent`
