@@ -19,7 +19,8 @@ GenLayer makes both possible inside the contract through `gl.nondet.web.render(.
 - `v2.M6`: architecture docs, ADRs, expanded tests, bilingual docs, CI, generated API reference
 - `v2.M2`: multi-source evidence gathering, three-perspective reasoning, confidence/evidence-quality-aware outcomes
 - `v2.M3`: owner appeals, probation recovery, and reporter reward economics
-- planned next: categories, multi-token bonds, watchlists, and full frontend overhaul
+- `v2.M4`: category-aware rubrics, thresholds, and mandate templates
+- planned next: multi-token bonds, watchlists, and full frontend overhaul
 
 See [CHANGELOG.md](./CHANGELOG.md) for release notes and `docs/evidence/` for milestone evidence bundles.
 
