@@ -5,7 +5,7 @@ Generated from `contracts/watchtower.py`.
 ## `register_agent`
 
 - decorators: `gl.public.write.payable`
-- args: `agent_id: str, mandate: str, evidence_url: str, bond: int`
+- args: `agent_id: str, mandate: str, evidence_url: str, bond: int, agent_wallet_address: str, github_repo: str, social_url: str`
 - returns: `str`
 
 ## `top_up_bond`
@@ -51,6 +51,12 @@ Generated from `contracts/watchtower.py`.
 - returns: `str`
 
 ## `get_audit`
+
+- decorators: `gl.public.view`
+- args: `audit_id: int`
+- returns: `str`
+
+## `get_full_audit`
 
 - decorators: `gl.public.view`
 - args: `audit_id: int`
