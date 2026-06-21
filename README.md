@@ -6,6 +6,20 @@ Dự án được viết hoàn toàn bằng **Python** và tương thích hoàn 
 
 ---
 
+## Milestones
+
+- `v2.M1` - Storage Refactor + Real Value Transfer + Security Hardening
+- `v2.M2` - AI Consensus Upgrade: Multi-Source Behavior Aggregation
+- `v2.M3` - Appeal Flow + Probation + Reporter Rewards
+- `v2.M4` - Agent Categories + Category-Specific Rubrics
+- `v2.M5` - Multi-Token Bonds + Watchlists + Precedent Signals
+- `v2.M6` - Documentation, Tests, Architecture, and CI
+- `v2.M7` - Frontend Overhaul + Demo Mode + Live Audit Feed
+
+Theo dõi chi tiết release đầu tiên trong [CHANGELOG.md](./CHANGELOG.md) và các bằng chứng milestone tại `docs/evidence/`.
+
+---
+
 ## 💡 Ý tưởng cốt lõi & Sự khác biệt
 
 Các hợp đồng thông minh truyền thống trên EVM (như Solidity) bị giới hạn trong môi trường hoàn toàn khép kín và mang tính xác định cao (deterministic). Chúng không thể:
@@ -80,6 +94,7 @@ Môi trường chính thức để chạy các Intelligent Contracts này là **
 * Thực hiện reset bộ nhớ và hard-refresh theo hướng dẫn trong [DEPLOY.md](file:///Users/ai/bot AI/Watchtower/docs/DEPLOY.md).
 * Deploy [storage_test.py](file:///Users/ai/bot AI/Watchtower/contracts/storage_test.py) để kiểm tra tính năng lưu trữ cơ bản hoạt động ổn định.
 * Deploy [watchtower.py](file:///Users/ai/bot AI/Watchtower/contracts/watchtower.py) để chạy ứng dụng chính.
+* Từ `v2.M1`, `register_agent` và `top_up_bond` là method payable: giá trị bond phải được gửi qua `gl.message.value`, không chỉ qua tham số số học.
 
 ### 2. Kịch bản chạy thử
 Hãy theo dõi [sample_audit.md](file:///Users/ai/bot AI/Watchtower/examples/sample_audit.md) để:
