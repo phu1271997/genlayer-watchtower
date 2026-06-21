@@ -1,12 +1,19 @@
 import { useState, useEffect, useRef } from "react";
-import { getGenLayerClient, CONTRACT_ADDRESS, RPC_URL, generatePrivateKey } from "./genlayerClient";
+import { getGenLayerClient, CONTRACT_ADDRESS, generatePrivateKey } from "./genlayerClient";
 import { AuditCard } from "./components/AuditCard";
 import { AppealModal } from "./components/AppealModal";
 import { AgentTimeline } from "./components/AgentTimeline";
 import { CategoryAdminPanel } from "./components/CategoryAdminPanel";
 import { CategoryDropdown } from "./components/CategoryDropdown";
+import { LiveAuditFeed } from "./components/LiveAuditFeed";
+import { LoadingSkeleton } from "./components/LoadingSkeleton";
+import { PenaltyPoolPanel } from "./components/PenaltyPoolPanel";
 import { ProbationBadge } from "./components/ProbationBadge";
 import { ReporterLeaderboard } from "./components/ReporterLeaderboard";
+import { ToastNotifications } from "./components/ToastNotifications";
+import { WalletConnector } from "./components/WalletConnector";
+import { useLiveAudits } from "./hooks/useLiveAudits";
+import { useWallet } from "./hooks/useWallet";
 import "./App.css";
 
 interface AuditReport {
@@ -73,12 +80,12 @@ function isPositiveIntegerString(value: string) {
 }
 
 function App() {
-  // Account & Client Settings
-  const [privateKey, setPrivateKey] = useState<string>("");
-  const [activeAddress, setActiveAddress] = useState<string>("");
+  const { privateKey, activeAddress, setPrivateKey } = useWallet();
   const [contractAddress] = useState<string>(CONTRACT_ADDRESS);
   const [penaltyPool, setPenaltyPool] = useState<number>(0);
   const [pendingBalance, setPendingBalance] = useState<number>(0);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const demoMode = new URLSearchParams(window.location.search).get("demo") === "1";
   
   // Ephemeral loading
   const [isFunding, setIsFunding] = useState<boolean>(false);
@@ -111,16 +118,9 @@ function App() {
   // Console Logs
   const [consoleLogs, setConsoleLogs] = useState<LogLine[]>([]);
   const terminalEndRef = useRef<HTMLDivElement>(null);
+  const liveAudits = useLiveAudits(activeAuditReports, demoMode);
 
-  // Load private key on mount
   useEffect(() => {
-    let key = localStorage.getItem("watchtower_private_key");
-    if (!key) {
-      key = generatePrivateKey();
-      localStorage.setItem("watchtower_private_key", key);
-    }
-    setPrivateKey(key);
-    
     // Load registered agents from local storage
     const savedAgents = localStorage.getItem("watchtower_registered_agents");
     if (savedAgents) {
@@ -141,19 +141,18 @@ function App() {
     }
   }, []);
 
-  // Update address when privateKey changes
   useEffect(() => {
-    if (privateKey) {
-      try {
-        const client = getGenLayerClient(privateKey);
-        if (client.account) {
-          setActiveAddress(client.account.address);
-        }
-      } catch (e) {
-        console.error("Failed to extract address from key", e);
-      }
+    const storedTheme = localStorage.getItem("watchtower_theme");
+    if (storedTheme === "light" || storedTheme === "dark") {
+      setTheme(storedTheme);
+      document.documentElement.dataset.theme = storedTheme;
     }
-  }, [privateKey]);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("watchtower_theme", theme);
+  }, [theme]);
 
   // Load selected agent & penalty pool
   useEffect(() => {
@@ -562,6 +561,7 @@ function App() {
   };
 
   return (
+    <>
     <div className="app-container">
       {/* Header */}
       <header className="app-header">
@@ -572,6 +572,11 @@ function App() {
           <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginTop: "0.25rem" }}>
             Fiduciary Guarddog for Autonomous AI Agents
           </p>
+          {demoMode && (
+            <p style={{ color: "var(--accent-yellow)", fontSize: "0.9rem", marginTop: "0.5rem" }}>
+              Live fiduciary watchtower - monitoring AI agents in real time.
+            </p>
+          )}
         </div>
         
         <div className="contract-info">
@@ -581,6 +586,13 @@ function App() {
           <div className="contract-address" title={contractAddress}>
             {contractAddress}
           </div>
+          <button
+            className="btn btn-secondary btn-sm"
+            style={{ marginTop: "0.75rem", width: "auto" }}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+          </button>
         </div>
       </header>
 
@@ -589,82 +601,20 @@ function App() {
         {/* Left Sidebar */}
         <aside className="sidebar">
           {/* Ephemeral Account info */}
-          <section className="card">
-            <h2 className="card-title">
-              🔑 Active Wallet
-            </h2>
-            <div className="account-box">
-              <div className="account-row">
-                <span className="account-key">Address</span>
-                <span className="account-val" title={activeAddress}>
-                  {activeAddress || "Connecting..."}
-                </span>
-              </div>
-              <div className="account-row">
-                <span className="account-key">RPC URL</span>
-                <span className="account-val" title={RPC_URL}>
-                  Studio Network
-                </span>
-              </div>
-            </div>
-            
-            <div className="form-group">
-              <label className="form-label">Private Key (ECDSA Hex)</label>
-              <input
-                type="text"
-                className="form-input form-input-mono"
-                placeholder="0x... (Leave empty for random account)"
-                value={privateKey}
-                onChange={(e) => handleKeyChange(e.target.value)}
-              />
-            </div>
-            
-            <div className="account-actions">
-              <button 
-                className="btn btn-secondary btn-sm"
-                onClick={fundAccount}
-                disabled={isFunding}
-              >
-                {isFunding ? "Funding..." : "⚡ Request 100 GEN"}
-              </button>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  const newKey = generatePrivateKey();
-                  handleKeyChange(newKey);
-                }}
-              >
-                🔄 New Account
-              </button>
-            </div>
-          </section>
+          <WalletConnector
+            activeAddress={activeAddress}
+            privateKey={privateKey}
+            isFunding={isFunding}
+            onKeyChange={handleKeyChange}
+            onFund={fundAccount}
+            onGenerate={() => {
+              const newKey = generatePrivateKey();
+              handleKeyChange(newKey);
+            }}
+          />
 
           {/* Slashed penalty pool widget */}
-          <section className="card">
-            <h2 className="card-title">
-              💰 Penalty Pool
-            </h2>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--accent-pink)", fontFamily: "var(--font-mono)" }}>
-                {penaltyPool.toLocaleString()}
-              </span>
-              <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                Native GEN units
-              </span>
-            </div>
-            <p style={{ fontSize: "0.8rem", color: "var(--text-dark)", marginTop: "0.5rem" }}>
-              Total native-value bond slashed from agents whose audits breached the severity threshold.
-            </p>
-            <div style={{ marginTop: "1rem", display: "grid", gap: "0.5rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
-                <span style={{ color: "var(--text-muted)" }}>Claimable balance</span>
-                <span style={{ fontFamily: "var(--font-mono)" }}>{pendingBalance}</span>
-              </div>
-              <button className="btn btn-secondary btn-sm" onClick={handleClaim} disabled={isLoading || pendingBalance <= 0}>
-                {isLoading ? "Claiming..." : "Claim Pending Balance"}
-              </button>
-            </div>
-          </section>
+          <PenaltyPoolPanel penaltyPool={penaltyPool} pendingBalance={pendingBalance} isLoading={isLoading} onClaim={handleClaim} />
 
           {/* Agents registry */}
           <section className="card">
@@ -692,6 +642,7 @@ function App() {
 
         {/* Right Main Panel */}
         <main className="main-panel">
+          <LiveAuditFeed audits={liveAudits} demoMode={demoMode} />
           {/* Register Agent Card */}
           <section className="card">
             <h2 className="card-title">
@@ -965,6 +916,7 @@ function App() {
               )}
 
               {/* Console Output simulator */}
+              {isLoading && <LoadingSkeleton />}
               <section className="card" style={{ marginBottom: 0 }}>
                 <h2 className="card-title">
                   💻 GenVM Consensus Console
@@ -1027,6 +979,8 @@ function App() {
         </main>
       </div>
     </div>
+    <ToastNotifications logs={consoleLogs} />
+    </>
   );
 }
 
