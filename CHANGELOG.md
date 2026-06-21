@@ -1,5 +1,26 @@
 # Changelog
 
+## [v2.M5] - Multi-Token Bonds + Network Effects - 2026-06-21
+### Added
+- ERC20-style bond registration, top-up, and token claim flows.
+- Watchlist creation, membership management, and subscriber counts.
+- Prior-pattern and category-precedent prompt injection for case-law-style consistency.
+- Mock ERC20 contract and supporting docs.
+
+### Changed
+- Agent records now track a `bond_token` field alongside native or token-denominated bond balances.
+
+### Fixed
+- Watchtower can now model higher-value bonds without forcing every agent into native GEN only.
+
+### Security
+- Token bonds are gated behind an admin allowlist before registration is allowed.
+
+### Evidence
+- before/after screenshots: `docs/evidence/m5/`
+- tests added: `tests/test_multi_token.py`, `tests/test_watchlist.py`, `tests/test_precedent.py`
+- quantifiable metric: audit prompts now reference up to 3 same-agent precedents plus same-category peer precedents
+
 ## [v2.M4] - Agent Categories + Category-Specific Rubrics - 2026-06-21
 ### Added
 - Agent categories, category rubrics, category thresholds, and mandate templates.
