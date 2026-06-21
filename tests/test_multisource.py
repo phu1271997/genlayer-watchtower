@@ -22,6 +22,7 @@ def test_audit_fetches_all_available_sources(deployed_contract):
         mandate,
         evidence_url,
         1_000,
+        "OTHER",
         wallet_address,
         github_repo,
         social_url,
