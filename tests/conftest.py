@@ -118,6 +118,24 @@ class FakeEvm:
                     {"to": str(self.address), "value": int(value), "on": on}
                 )
 
+            def transfer(self, to, amount):
+                token = env.evm_contracts.get(str(self.address))
+                if token is None:
+                    return False
+                return token.transfer(FakeAddress(to), int(amount))
+
+            def transferFrom(self, from_address, to, amount):
+                token = env.evm_contracts.get(str(self.address))
+                if token is None:
+                    return False
+                return token.transfer_from(FakeAddress(from_address), FakeAddress(to), int(amount))
+
+            def balanceOf(self, owner):
+                token = env.evm_contracts.get(str(self.address))
+                if token is None:
+                    return FakeU256(0)
+                return FakeU256(token.balance_of(FakeAddress(owner)))
+
         Wrapped.__name__ = cls.__name__
         return Wrapped
 
@@ -137,6 +155,7 @@ class FakeGenLayerEnv:
         self.principles = []
         self.transfers = []
         self.current_time = 1_700_000_000
+        self.evm_contracts = {}
 
         self.gl = types.SimpleNamespace()
         self.gl.Contract = FakeContractBase
