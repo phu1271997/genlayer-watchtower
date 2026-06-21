@@ -24,6 +24,7 @@ def test_multi_agent_lifecycle_balances_stay_consistent(deployed_contract):
 
     total_deposited = 0
     total_slashed = 0
+    total_reporter_rewards = 0
 
     for index, owner in enumerate(owners, start=1):
         amount = index * 1_000
@@ -44,6 +45,7 @@ def test_multi_agent_lifecycle_balances_stay_consistent(deployed_contract):
                 severity = 80
                 slash_ratio = 25
                 total_slashed += amount * slash_ratio // 100
+                total_reporter_rewards += (amount * slash_ratio // 100) * 1000 // 10000
                 reasoning = f"Transaction 0xabc{index}{audit_round} moved ${200 * index} outside the approved budget."
             else:
                 verdict = "WARNING"
@@ -65,7 +67,7 @@ def test_multi_agent_lifecycle_balances_stay_consistent(deployed_contract):
             env.message.value = module.u256(0)
             contract.audit(agent_id, f"watcher-{index}")
 
-    assert contract.get_penalty_pool() == total_slashed
+    assert contract.get_penalty_pool() == total_slashed - total_reporter_rewards
 
     remaining_bonds = 0
     total_audits = 0
@@ -75,12 +77,17 @@ def test_multi_agent_lifecycle_balances_stay_consistent(deployed_contract):
         total_audits += agent["audit_count"]
 
     assert total_audits == 10
-    assert remaining_bonds + contract.get_penalty_pool() == total_deposited
+    pending_reporter_balances = 0
+    for index in range(1, 6):
+        reporter_address = owners[index - 1]
+        pending_reporter_balances += contract.get_pending_balance(reporter_address)
+
+    assert remaining_bonds + contract.get_penalty_pool() + pending_reporter_balances == total_deposited
 
     env.message.sender_address = module.Address(ADMIN)
-    credited = contract.withdraw_penalty_pool(ADMIN, total_slashed)
-    assert credited == total_slashed
+    credited = contract.withdraw_penalty_pool(ADMIN, total_slashed - total_reporter_rewards)
+    assert credited == total_slashed - total_reporter_rewards
     assert contract.get_penalty_pool() == 0
 
     claimed = contract.claim()
-    assert claimed == total_slashed
+    assert claimed == total_slashed - total_reporter_rewards
