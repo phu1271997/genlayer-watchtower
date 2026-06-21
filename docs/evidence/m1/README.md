@@ -6,6 +6,7 @@
 - `after.png`: Watchtower v2 M1 UI and contract behavior after the storage, value, and security upgrade
 - `contract-diff.md`: summary of storage/value-transfer/security changes
 - `test-output.txt`: local pytest output for the M1 suite
+- `build-output.txt`: local `npm run build` output for the refreshed frontend
 
 ## Current Local Evidence
 
