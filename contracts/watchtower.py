@@ -225,8 +225,18 @@ class _Recipient:
     def emit_transfer(self, value: u256, on: str = "finalized"): ...
 
 
+@gl.evm.contract_interface
+class _ERC20:
+    def transfer(self, to: Address, amount: u256) -> bool: ...
+
+    def transferFrom(self, from_address: Address, to: Address, amount: u256) -> bool: ...
+
+    def balanceOf(self, owner: Address) -> u256: ...
+
+
 class Contract(gl.Contract):
     admin: Address
+    contract_vault: Address
     penalty_pool: u256
     violation_threshold: u256
     min_audit_interval_seconds: u256
@@ -234,6 +244,8 @@ class Contract(gl.Contract):
     audit_count: u256
     appeal_count: u256
     reporter_count: u256
+    agent_count: u256
+    watchlist_count: u256
     reporter_reward_bps: u256
     agent_owner_of: TreeMap[str, Address]
     agent_mandate_of: TreeMap[str, str]
@@ -242,6 +254,7 @@ class Contract(gl.Contract):
     agent_github_of: TreeMap[str, str]
     agent_social_of: TreeMap[str, str]
     agent_category_of: TreeMap[str, str]
+    agent_bond_token_of: TreeMap[str, Address]
     agent_bond_of: TreeMap[str, u256]
     agent_status_of: TreeMap[str, str]
     agent_registered_at_of: TreeMap[str, u256]
@@ -280,9 +293,18 @@ class Contract(gl.Contract):
     category_rubric_of: TreeMap[str, str]
     category_default_threshold_of: TreeMap[str, u256]
     mandate_template_of: TreeMap[str, str]
+    supported_bond_tokens: TreeMap[Address, bool]
+    pending_balance_token_of: TreeMap[str, u256]
+    agent_id_at_index: TreeMap[u256, str]
+    watchlist_owner_of: TreeMap[u256, Address]
+    watchlist_name_of: TreeMap[u256, str]
+    watchlist_agents_of: TreeMap[u256, str]
+    watchlist_subscriber_count_of: TreeMap[u256, u256]
+    watchlist_subscription_of: TreeMap[str, bool]
 
     def __init__(self):
         self.admin = gl.message.sender_address
+        self.contract_vault = Address("0x0000000000000000000000000000000000000001")
         self.penalty_pool = u256(0)
         self.violation_threshold = u256(60)
         self.min_audit_interval_seconds = u256(120)
@@ -290,6 +312,8 @@ class Contract(gl.Contract):
         self.audit_count = u256(0)
         self.appeal_count = u256(0)
         self.reporter_count = u256(0)
+        self.agent_count = u256(0)
+        self.watchlist_count = u256(0)
         self.reporter_reward_bps = u256(1000)
 
     def _user_error(self, message: str):
@@ -432,6 +456,9 @@ class Contract(gl.Contract):
             return self.mandate_template_of[normalized]
         return _DEFAULT_MANDATE_TEMPLATES[normalized]
 
+    def _token_balance_key(self, token: Address, owner: Address) -> str:
+        return f"{str(token).lower()}|{str(owner).lower()}"
+
     def _serialize_audit(self, audit_id: int) -> dict[str, object]:
         audit_key = u256(audit_id)
         reporter = ""
@@ -487,6 +514,7 @@ class Contract(gl.Contract):
             "github_repo": self.agent_github_of[agent_id] if agent_id in self.agent_github_of else "",
             "social_url": self.agent_social_of[agent_id] if agent_id in self.agent_social_of else "",
             "category": self.agent_category_of[agent_id] if agent_id in self.agent_category_of else "OTHER",
+            "bond_token": str(self.agent_bond_token_of[agent_id]) if agent_id in self.agent_bond_token_of else "0x0000000000000000000000000000000000000000",
             "bond_remaining": int(self.agent_bond_of[agent_id]),
             "status": self.agent_status_of[agent_id],
             "registered_at": self._u256_or_zero(self.agent_registered_at_of, agent_id),
@@ -539,6 +567,7 @@ class Contract(gl.Contract):
         self.agent_social_of[normalized_id] = social_url.strip()
         self.agent_category_of[normalized_id] = normalized_category
         self.agent_bond_of[normalized_id] = bond_value
+        self.agent_bond_token_of[normalized_id] = Address("0x0000000000000000000000000000000000000000")
         self.agent_status_of[normalized_id] = "ACTIVE"
         self.agent_registered_at_of[normalized_id] = now_value
         self.agent_last_audit_at_of[normalized_id] = u256(0)
@@ -546,6 +575,8 @@ class Contract(gl.Contract):
         self.agent_probation_until_of[normalized_id] = u256(0)
         self.agent_appeal_locked_of[normalized_id] = False
         self.latest_appeal_of_agent[normalized_id] = u256(0)
+        self.agent_count = u256(int(self.agent_count) + 1)
+        self.agent_id_at_index[self.agent_count] = normalized_id
 
         return json.dumps(self._serialize_agent(normalized_id))
 
@@ -606,6 +637,150 @@ class Contract(gl.Contract):
         normalized = self._normalize_category(category)
         self.mandate_template_of[normalized] = template
         return self.mandate_template_of[normalized]
+
+    @gl.public.write
+    def add_supported_token(self, token) -> bool:
+        self._require_admin()
+        token_address = self._to_address(token)
+        self.supported_bond_tokens[token_address] = True
+        return True
+
+    @gl.public.write
+    def remove_supported_token(self, token) -> bool:
+        self._require_admin()
+        token_address = self._to_address(token)
+        self.supported_bond_tokens[token_address] = False
+        return True
+
+    @gl.public.write
+    def register_agent_with_token(
+        self,
+        agent_id: str,
+        mandate: str,
+        evidence_url: str,
+        category: str,
+        token,
+        amount: int,
+        agent_wallet_address: str = "",
+        github_repo: str = "",
+        social_url: str = "",
+    ) -> str:
+        token_address = self._to_address(token)
+        if token_address not in self.supported_bond_tokens or not self.supported_bond_tokens[token_address]:
+            self._user_error("token is not supported")
+        if amount <= 0:
+            self._user_error("token bond amount must be positive")
+        if not _ERC20(token_address).transferFrom(gl.message.sender_address, self.contract_vault, u256(amount)):
+            self._user_error("token transferFrom failed")
+        normalized_id = agent_id.strip()
+        if not normalized_id:
+            self._user_error("agent_id is required")
+        if normalized_id in self.agent_owner_of:
+            self._user_error("agent_id already registered")
+        if len(mandate) < 50 or len(mandate) > 4000:
+            self._user_error("mandate length must be between 50 and 4000 characters")
+
+        now_value = self._now_u256()
+        normalized_category = self._normalize_category(category)
+        self.agent_owner_of[normalized_id] = gl.message.sender_address
+        self.agent_mandate_of[normalized_id] = mandate
+        self.agent_evidence_url_of[normalized_id] = evidence_url.strip()
+        self.agent_wallet_of[normalized_id] = agent_wallet_address.strip()
+        self.agent_github_of[normalized_id] = github_repo.strip()
+        self.agent_social_of[normalized_id] = social_url.strip()
+        self.agent_category_of[normalized_id] = normalized_category
+        self.agent_bond_of[normalized_id] = u256(amount)
+        self.agent_bond_token_of[normalized_id] = token_address
+        self.agent_status_of[normalized_id] = "ACTIVE"
+        self.agent_registered_at_of[normalized_id] = now_value
+        self.agent_last_audit_at_of[normalized_id] = u256(0)
+        self.agent_audit_count_of[normalized_id] = u256(0)
+        self.agent_probation_until_of[normalized_id] = u256(0)
+        self.agent_appeal_locked_of[normalized_id] = False
+        self.latest_appeal_of_agent[normalized_id] = u256(0)
+        self.agent_count = u256(int(self.agent_count) + 1)
+        self.agent_id_at_index[self.agent_count] = normalized_id
+        return json.dumps(self._serialize_agent(normalized_id))
+
+    @gl.public.write
+    def top_up_bond_token(self, agent_id: str, amount: int) -> str:
+        self._require_existing_agent(agent_id)
+        if gl.message.sender_address != self.agent_owner_of[agent_id]:
+            self._user_error("only the agent owner can top up the token bond")
+        token_address = self.agent_bond_token_of[agent_id]
+        if str(token_address) == "0x0000000000000000000000000000000000000000":
+            self._user_error("agent uses native bond, not token bond")
+        if amount <= 0:
+            self._user_error("token top-up must be positive")
+        if not _ERC20(token_address).transferFrom(gl.message.sender_address, self.contract_vault, u256(amount)):
+            self._user_error("token transferFrom failed")
+        self.agent_bond_of[agent_id] = u256(int(self.agent_bond_of[agent_id]) + amount)
+        return json.dumps(self._serialize_agent(agent_id))
+
+    @gl.public.write
+    def claim_token(self, token) -> int:
+        token_address = self._to_address(token)
+        balance_key = self._token_balance_key(token_address, gl.message.sender_address)
+        amount = self._u256_or_zero(self.pending_balance_token_of, balance_key)
+        if amount <= 0:
+            self._user_error("nothing to claim for token")
+        self.pending_balance_token_of[balance_key] = u256(0)
+        if not _ERC20(token_address).transfer(gl.message.sender_address, u256(amount)):
+            self._user_error("token transfer failed")
+        return amount
+
+    @gl.public.write
+    def create_watchlist(self, name: str) -> str:
+        self.watchlist_count = u256(int(self.watchlist_count) + 1)
+        watchlist_id = int(self.watchlist_count)
+        watchlist_key = u256(watchlist_id)
+        self.watchlist_owner_of[watchlist_key] = gl.message.sender_address
+        self.watchlist_name_of[watchlist_key] = name
+        self.watchlist_agents_of[watchlist_key] = "[]"
+        self.watchlist_subscriber_count_of[watchlist_key] = u256(0)
+        return self.get_watchlist(watchlist_id)
+
+    @gl.public.write
+    def add_to_watchlist(self, watchlist_id: int, agent_id: str) -> str:
+        watchlist_key = u256(max(watchlist_id, 0))
+        if self.watchlist_owner_of[watchlist_key] != gl.message.sender_address:
+            self._user_error("only the watchlist owner can modify this watchlist")
+        agents = json.loads(self.watchlist_agents_of[watchlist_key])
+        if agent_id not in agents:
+            agents.append(agent_id)
+        self.watchlist_agents_of[watchlist_key] = json.dumps(agents)
+        return self.get_watchlist(watchlist_id)
+
+    @gl.public.write
+    def remove_from_watchlist(self, watchlist_id: int, agent_id: str) -> str:
+        watchlist_key = u256(max(watchlist_id, 0))
+        if self.watchlist_owner_of[watchlist_key] != gl.message.sender_address:
+            self._user_error("only the watchlist owner can modify this watchlist")
+        agents = [item for item in json.loads(self.watchlist_agents_of[watchlist_key]) if item != agent_id]
+        self.watchlist_agents_of[watchlist_key] = json.dumps(agents)
+        return self.get_watchlist(watchlist_id)
+
+    @gl.public.write
+    def subscribe_watchlist(self, watchlist_id: int) -> int:
+        watchlist_key = u256(max(watchlist_id, 0))
+        subscription_key = f"{watchlist_id}|{str(gl.message.sender_address).lower()}"
+        if subscription_key not in self.watchlist_subscription_of or not self.watchlist_subscription_of[subscription_key]:
+            self.watchlist_subscription_of[subscription_key] = True
+            self.watchlist_subscriber_count_of[watchlist_key] = u256(
+                self._u256_or_zero(self.watchlist_subscriber_count_of, watchlist_key) + 1
+            )
+        return int(self.watchlist_subscriber_count_of[watchlist_key])
+
+    @gl.public.write
+    def unsubscribe_watchlist(self, watchlist_id: int) -> int:
+        watchlist_key = u256(max(watchlist_id, 0))
+        subscription_key = f"{watchlist_id}|{str(gl.message.sender_address).lower()}"
+        if subscription_key in self.watchlist_subscription_of and self.watchlist_subscription_of[subscription_key]:
+            self.watchlist_subscription_of[subscription_key] = False
+            count = self._u256_or_zero(self.watchlist_subscriber_count_of, watchlist_key)
+            if count > 0:
+                self.watchlist_subscriber_count_of[watchlist_key] = u256(count - 1)
+        return int(self.watchlist_subscriber_count_of[watchlist_key])
 
     @gl.public.write
     def withdraw_penalty_pool(self, to, amount: int) -> int:
@@ -803,6 +978,27 @@ class Contract(gl.Contract):
         github_repo = self.agent_github_of[agent_id] if agent_id in self.agent_github_of else ""
         social_url = self.agent_social_of[agent_id] if agent_id in self.agent_social_of else ""
         source_descriptors = self._source_descriptors(agent_id)
+        prior_patterns: list[str] = []
+        total_prior = self._u256_or_zero(self.agent_audit_count_of, agent_id)
+        prior_start = total_prior - 3 if total_prior > 3 else 0
+        prior_index = prior_start
+        while prior_index < total_prior:
+            prior_slot = self._audit_slot_key(agent_id, prior_index)
+            if prior_slot in self.agent_audit_id_of:
+                prior_patterns.append(json.dumps(self._serialize_audit(int(self.agent_audit_id_of[prior_slot]))))
+            prior_index += 1
+
+        category_precedents: list[str] = []
+        agent_index = 1
+        while agent_index <= int(self.agent_count):
+            peer_agent_id = self.agent_id_at_index[u256(agent_index)]
+            if peer_agent_id != agent_id and self.agent_category_of[peer_agent_id] == category:
+                peer_last_audit_id = self._last_audit_id_of_agent(peer_agent_id)
+                if peer_last_audit_id > 0:
+                    category_precedents.append(json.dumps(self._serialize_audit(peer_last_audit_id)))
+                if len(category_precedents) >= 3:
+                    break
+            agent_index += 1
         next_audit_index = self._u256_or_zero(self.agent_audit_count_of, agent_id) + 1
         canary = self._build_canary(agent_id, next_audit_index)
         sanitized_mandate = _sanitize_user_text(mandate, 4000)
@@ -841,6 +1037,10 @@ class Contract(gl.Contract):
                 f"{category}\n\n"
                 "CATEGORY RUBRIC:\n"
                 f"{category_rubric}\n\n"
+                "PRIOR PATTERN:\n"
+                f"{chr(10).join(prior_patterns) if prior_patterns else 'none'}\n\n"
+                "CATEGORY PRECEDENTS:\n"
+                f"{chr(10).join(category_precedents) if category_precedents else 'none'}\n\n"
                 "OPTIONAL METADATA:\n"
                 f"wallet_address={wallet_address.strip()}\n"
                 f"github_repo={github_repo.strip()}\n"
@@ -988,6 +1188,21 @@ class Contract(gl.Contract):
                 }
             )
         return json.dumps(categories)
+
+    @gl.public.view
+    def get_watchlist(self, watchlist_id: int) -> str:
+        watchlist_key = u256(max(watchlist_id, 0))
+        if watchlist_key not in self.watchlist_owner_of:
+            return "{}"
+        return json.dumps(
+            {
+                "id": watchlist_id,
+                "owner": str(self.watchlist_owner_of[watchlist_key]),
+                "name": self.watchlist_name_of[watchlist_key],
+                "agents": json.loads(self.watchlist_agents_of[watchlist_key]),
+                "subscriber_count": int(self.watchlist_subscriber_count_of[watchlist_key]),
+            }
+        )
 
     @gl.public.view
     def list_audits_of_agent(self, agent_id: str, start: int, limit: int) -> str:

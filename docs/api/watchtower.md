@@ -50,6 +50,66 @@ Generated from `contracts/watchtower.py`.
 - args: `category: str, template: str`
 - returns: `str`
 
+## `add_supported_token`
+
+- decorators: `gl.public.write`
+- args: `token: None`
+- returns: `bool`
+
+## `remove_supported_token`
+
+- decorators: `gl.public.write`
+- args: `token: None`
+- returns: `bool`
+
+## `register_agent_with_token`
+
+- decorators: `gl.public.write`
+- args: `agent_id: str, mandate: str, evidence_url: str, category: str, token: None, amount: int, agent_wallet_address: str, github_repo: str, social_url: str`
+- returns: `str`
+
+## `top_up_bond_token`
+
+- decorators: `gl.public.write`
+- args: `agent_id: str, amount: int`
+- returns: `str`
+
+## `claim_token`
+
+- decorators: `gl.public.write`
+- args: `token: None`
+- returns: `int`
+
+## `create_watchlist`
+
+- decorators: `gl.public.write`
+- args: `name: str`
+- returns: `str`
+
+## `add_to_watchlist`
+
+- decorators: `gl.public.write`
+- args: `watchlist_id: int, agent_id: str`
+- returns: `str`
+
+## `remove_from_watchlist`
+
+- decorators: `gl.public.write`
+- args: `watchlist_id: int, agent_id: str`
+- returns: `str`
+
+## `subscribe_watchlist`
+
+- decorators: `gl.public.write`
+- args: `watchlist_id: int`
+- returns: `int`
+
+## `unsubscribe_watchlist`
+
+- decorators: `gl.public.write`
+- args: `watchlist_id: int`
+- returns: `int`
+
 ## `withdraw_penalty_pool`
 
 - decorators: `gl.public.write`
@@ -120,6 +180,12 @@ Generated from `contracts/watchtower.py`.
 
 - decorators: `gl.public.view`
 - args: `none`
+- returns: `str`
+
+## `get_watchlist`
+
+- decorators: `gl.public.view`
+- args: `watchlist_id: int`
 - returns: `str`
 
 ## `list_audits_of_agent`
