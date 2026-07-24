@@ -155,6 +155,13 @@ class FakeGenLayerEnv:
         module.TreeMap = FakeTreeMap
         module.DynArray = list
         module.__all__ = ["gl", "u256", "Address", "TreeMap", "DynArray"]
+        env_ref = self
+        class _FakeMessageRaw(dict):
+            def get(self, key, default=None):
+                if key == "datetime":
+                    return env_ref.current_time
+                return dict.get(self, key, default)
+        self.gl.message_raw = _FakeMessageRaw()
         sys.modules["genlayer"] = module
         return module
 
@@ -172,8 +179,6 @@ def deployed_contract():
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
-
-    module.time.time = lambda: env.current_time
 
     contract_cls = module.Contract
     contract = contract_cls.__new__(contract_cls)
