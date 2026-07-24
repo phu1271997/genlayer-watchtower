@@ -3,20 +3,27 @@ import { getGenLayerClient, CONTRACT_ADDRESS, RPC_URL, generatePrivateKey } from
 import "./App.css";
 
 interface AuditReport {
+  id: number;
   reporter: string;
+  reporter_label: string;
   verdict: string;
   severity: number;
   slashed: number;
   reasoning: string;
+  recorded_at: number;
 }
 
 interface AgentState {
   id: string;
+  owner: string;
   mandate: string;
   evidence_url: string;
   bond_remaining: number;
   status: string;
-  audits: AuditReport[];
+  registered_at: number;
+  last_audit_at: number;
+  audit_count: number;
+  audit_ids: number[];
 }
 
 interface LogLine {
@@ -25,12 +32,17 @@ interface LogLine {
   type: "info" | "success" | "error" | "warning";
 }
 
+function isPositiveIntegerString(value: string) {
+  return /^\d+$/.test(value.trim()) && BigInt(value.trim()) > 0n;
+}
+
 function App() {
   // Account & Client Settings
   const [privateKey, setPrivateKey] = useState<string>("");
   const [activeAddress, setActiveAddress] = useState<string>("");
   const [contractAddress] = useState<string>(CONTRACT_ADDRESS);
   const [penaltyPool, setPenaltyPool] = useState<number>(0);
+  const [pendingBalance, setPendingBalance] = useState<number>(0);
   
   // Ephemeral loading
   const [isFunding, setIsFunding] = useState<boolean>(false);
@@ -40,15 +52,16 @@ function App() {
   const [agentsRegistry, setAgentsRegistry] = useState<string[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [activeAgentData, setActiveAgentData] = useState<AgentState | null>(null);
+  const [activeAuditReports, setActiveAuditReports] = useState<AuditReport[]>([]);
 
   // Register Form
   const [regId, setRegId] = useState<string>("");
   const [regMandate, setRegMandate] = useState<string>("");
   const [regEvidenceUrl, setRegEvidenceUrl] = useState<string>("");
-  const [regBond, setRegBond] = useState<number>(500000); // 500,000 cents = $5,000
+  const [regBond, setRegBond] = useState<string>("1000");
 
   // Interaction Forms
-  const [topUpAmount, setTopUpAmount] = useState<number>(100000); // $1000.00
+  const [topUpAmount, setTopUpAmount] = useState<string>("250");
   const [reporterName, setReporterName] = useState<string>("watcher-alice");
 
   // Console Logs
@@ -104,6 +117,9 @@ function App() {
       fetchAgentDetails(selectedAgentId);
     }
     fetchPenaltyPool();
+    if (activeAddress) {
+      fetchPendingBalance(activeAddress);
+    }
   }, [selectedAgentId, activeAddress]);
 
   // Auto-scroll console
@@ -131,6 +147,47 @@ function App() {
     }
   };
 
+  const fetchPendingBalance = async (address: string) => {
+    if (!address) return;
+    try {
+      const client = getGenLayerClient(privateKey);
+      const balance = await client.readContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "get_pending_balance",
+        args: [address],
+      });
+      setPendingBalance(Number(balance));
+    } catch (e) {
+      console.error("Failed to fetch pending balance", e);
+      setPendingBalance(0);
+    }
+  };
+
+  const fetchAuditReports = async (auditIds: number[]) => {
+    if (auditIds.length === 0) {
+      setActiveAuditReports([]);
+      return;
+    }
+
+    try {
+      const client = getGenLayerClient(privateKey);
+      const reports = await Promise.all(
+        auditIds.map(async (auditId) => {
+          const res = await client.readContract({
+            address: CONTRACT_ADDRESS,
+            functionName: "get_audit",
+            args: [auditId],
+          });
+          return JSON.parse(String(res)) as AuditReport;
+        }),
+      );
+      setActiveAuditReports(reports);
+    } catch (e) {
+      console.error("Failed to fetch audit reports", e);
+      setActiveAuditReports([]);
+    }
+  };
+
   // Fetch details of a specific agent
   const fetchAgentDetails = async (agentId: string) => {
     if (!agentId) return;
@@ -145,13 +202,16 @@ function App() {
       const resStr = String(res);
       if (resStr === "{}" || !resStr) {
         setActiveAgentData(null);
+        setActiveAuditReports([]);
       } else {
         const parsed = JSON.parse(resStr) as AgentState;
         setActiveAgentData(parsed);
+        await fetchAuditReports(parsed.audit_ids ?? []);
       }
     } catch (e) {
       console.error("Failed to load agent details", e);
       setActiveAgentData(null);
+      setActiveAuditReports([]);
     }
   };
 
@@ -193,7 +253,8 @@ function App() {
   // Register Agent
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regId || !regMandate || !regEvidenceUrl || regBond <= 0) {
+    const registerBondValue = regBond.trim();
+    if (!regId || !regMandate || !regEvidenceUrl || !isPositiveIntegerString(registerBondValue)) {
       alert("Please fill all agent registration fields.");
       return;
     }
@@ -205,8 +266,8 @@ function App() {
       const txHash = await client.writeContract({
         address: CONTRACT_ADDRESS,
         functionName: "register_agent",
-        args: [regId, regMandate, regEvidenceUrl, regBond],
-        value: 0n,
+        args: [regId, regMandate, regEvidenceUrl, BigInt(registerBondValue)],
+        value: BigInt(registerBondValue),
       });
 
       addLog(`[Register] TX Broadcasted. Hash: ${txHash}. Waiting for finalization...`, "warning");
@@ -243,16 +304,17 @@ function App() {
 
   // Top Up Bond
   const handleTopUp = async () => {
-    if (!selectedAgentId || topUpAmount <= 0) return;
+    const topUpValue = topUpAmount.trim();
+    if (!selectedAgentId || !isPositiveIntegerString(topUpValue)) return;
     setIsLoading(true);
-    addLog(`[Top-up] Depositing $${(topUpAmount/100).toFixed(2)} cọc (bond) cho ${selectedAgentId}...`, "info");
+    addLog(`[Top-up] Depositing ${topUpValue} GEN units into ${selectedAgentId}'s bond...`, "info");
     try {
       const client = getGenLayerClient(privateKey);
       const txHash = await client.writeContract({
         address: CONTRACT_ADDRESS,
         functionName: "top_up_bond",
-        args: [selectedAgentId, topUpAmount],
-        value: 0n,
+        args: [selectedAgentId, BigInt(topUpValue)],
+        value: BigInt(topUpValue),
       });
 
       addLog(`[Top-up] TX Broadcasted. Hash: ${txHash}. Awaiting confirmation...`, "warning");
@@ -316,6 +378,7 @@ function App() {
       // Reload Agent and Pool
       await fetchAgentDetails(selectedAgentId);
       await fetchPenaltyPool();
+      await fetchPendingBalance(activeAddress);
       
       // Print verdict summary based on reloaded state
       const refreshedClient = getGenLayerClient(privateKey);
@@ -325,18 +388,54 @@ function App() {
         args: [selectedAgentId],
       });
       const parsed = JSON.parse(String(res)) as AgentState;
-      const latestAudit = parsed.audits[parsed.audits.length - 1];
+      const latestAuditId = parsed.audit_ids[parsed.audit_ids.length - 1];
+      const latestAuditRes = latestAuditId
+        ? await refreshedClient.readContract({
+            address: CONTRACT_ADDRESS,
+            functionName: "get_audit",
+            args: [latestAuditId],
+          })
+        : null;
+      const latestAudit = latestAuditRes ? (JSON.parse(String(latestAuditRes)) as AuditReport) : null;
       if (latestAudit) {
         const severityColor = latestAudit.severity >= 60 ? "error" : latestAudit.severity >= 30 ? "warning" : "success";
-        addLog(`[Verdict] Reporter: ${latestAudit.reporter} | Verdict: ${latestAudit.verdict} (Severity: ${latestAudit.severity}/100)`, severityColor);
+        addLog(`[Verdict] Reporter: ${latestAudit.reporter_label || latestAudit.reporter} | Verdict: ${latestAudit.verdict} (Severity: ${latestAudit.severity}/100)`, severityColor);
         addLog(`[Reasoning] ${latestAudit.reasoning}`, "info");
         if (latestAudit.slashed > 0) {
-          addLog(`[Slashing Alert] SLASHE D $${(latestAudit.slashed / 100).toFixed(2)} from bond into penalty pool!`, "error");
+          addLog(`[Slashing Alert] Slashed ${latestAudit.slashed} GEN units from the bond into the penalty pool.`, "error");
         }
       }
     } catch (err: any) {
       console.error(err);
       addLog(`[Audit Error] ${err.message || err.toString()}`, "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleClaim = async () => {
+    if (pendingBalance <= 0) return;
+    setIsLoading(true);
+    addLog(`[Claim] Claiming ${pendingBalance} GEN units to ${activeAddress}...`, "info");
+    try {
+      const client = getGenLayerClient(privateKey);
+      const txHash = await client.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "claim",
+        args: [],
+        value: 0n,
+      });
+
+      addLog(`[Claim] TX Broadcasted. Hash: ${txHash}. Awaiting confirmation...`, "warning");
+      await client.waitForTransactionReceipt({ hash: txHash });
+      addLog("[Claim] Pending balance claimed successfully!", "success");
+      await fetchPendingBalance(activeAddress);
+      if (selectedAgentId) {
+        await fetchAgentDetails(selectedAgentId);
+      }
+    } catch (err: any) {
+      console.error(err);
+      addLog(`[Claim Error] ${err.message || err.toString()}`, "error");
     } finally {
       setIsLoading(false);
     }
@@ -427,15 +526,24 @@ function App() {
             </h2>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <span style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--accent-pink)", fontFamily: "var(--font-mono)" }}>
-                ${(penaltyPool / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {penaltyPool.toLocaleString()}
               </span>
               <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                USD (Cents: {penaltyPool})
+                Native GEN units
               </span>
             </div>
             <p style={{ fontSize: "0.8rem", color: "var(--text-dark)", marginTop: "0.5rem" }}>
-              Total bond amount slashed from rogue AI agents violating their natural language mandates.
+              Total native-value bond slashed from agents whose audits breached the severity threshold.
             </p>
+            <div style={{ marginTop: "1rem", display: "grid", gap: "0.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
+                <span style={{ color: "var(--text-muted)" }}>Claimable balance</span>
+                <span style={{ fontFamily: "var(--font-mono)" }}>{pendingBalance}</span>
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={handleClaim} disabled={isLoading || pendingBalance <= 0}>
+                {isLoading ? "Claiming..." : "Claim Pending Balance"}
+              </button>
+            </div>
           </section>
 
           {/* Agents registry */}
@@ -483,13 +591,13 @@ function App() {
                   />
                 </div>
                 <div>
-                  <label className="form-label">Initial Bond (in Cents)</label>
+                  <label className="form-label">Initial Bond (GEN Units)</label>
                   <input
                     type="number"
                     className="form-input"
-                    placeholder="500000 (= $5,000 USD)"
+                    placeholder="1000000000000000000 (= 1 GEN if using 18 decimals)"
                     value={regBond}
-                    onChange={(e) => setRegBond(Number(e.target.value))}
+                    onChange={(e) => setRegBond(e.target.value)}
                     disabled={isLoading}
                   />
                 </div>
@@ -549,12 +657,12 @@ function App() {
                 </div>
 
                 <div className="bond-container">
-                  <div className="bond-header">
-                    <span className="bond-title">Guardian Bond Progress</span>
-                    <span className="bond-values">
-                      ${(activeAgentData.bond_remaining / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })} remaining
-                    </span>
-                  </div>
+                <div className="bond-header">
+                  <span className="bond-title">Guardian Bond Progress</span>
+                  <span className="bond-values">
+                      {activeAgentData.bond_remaining.toLocaleString()} units remaining
+                  </span>
+                </div>
                   <div className="bond-bar">
                     <div
                       className={`bond-fill ${activeAgentData.status === "FROZEN" ? "slashed" : ""}`}
@@ -564,6 +672,10 @@ function App() {
                 </div>
 
                 <div style={{ marginTop: "1.5rem" }}>
+                  <span className="form-label">Owner</span>
+                  <div className="mandate-quote" style={{ fontFamily: "var(--font-mono)", marginBottom: "1rem" }}>
+                    {activeAgentData.owner}
+                  </div>
                   <span className="form-label">Ủy thác hoạt động (Fiduciary Mandate)</span>
                   <div className="mandate-quote">
                     "{activeAgentData.mandate}"
@@ -612,12 +724,12 @@ function App() {
                   </p>
 
                   <div className="form-group">
-                    <label className="form-label">Top up Amount (in Cents)</label>
+                    <label className="form-label">Top up Amount (GEN Units)</label>
                     <input
                       type="number"
                       className="form-input"
                       value={topUpAmount}
-                      onChange={(e) => setTopUpAmount(Number(e.target.value))}
+                      onChange={(e) => setTopUpAmount(e.target.value)}
                       disabled={isLoading || activeAgentData.status === "FROZEN"}
                     />
                   </div>
@@ -662,15 +774,15 @@ function App() {
                 <h2 className="card-title">
                   📜 Audit History logs
                 </h2>
-                {activeAgentData.audits.length === 0 ? (
+                {activeAuditReports.length === 0 ? (
                   <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", padding: "1rem 0" }}>
                     No audit reports filed for this agent yet.
                   </p>
                 ) : (
                   <div className="audit-timeline">
-                    {activeAgentData.audits.slice().reverse().map((audit, idx) => (
+                    {activeAuditReports.slice().reverse().map((audit) => (
                       <div 
-                        key={idx} 
+                        key={audit.id} 
                         className={`audit-node node-${audit.verdict.toLowerCase()}`}
                       >
                         <div className="audit-meta">
@@ -678,11 +790,11 @@ function App() {
                             {audit.verdict}
                           </span>
                           <span className="audit-reporter">
-                            Reported by <strong>{audit.reporter}</strong>
+                            Audit #{audit.id} by <strong>{audit.reporter_label || audit.reporter}</strong>
                           </span>
                           {audit.slashed > 0 && (
                             <span className="audit-slashed">
-                              -${(audit.slashed / 100).toFixed(2)} slashed
+                              -{audit.slashed} units slashed
                             </span>
                           )}
                         </div>
@@ -696,7 +808,7 @@ function App() {
                             Severity: <span>{audit.severity}/100</span>
                           </div>
                           <div className="audit-detail-item">
-                            Slash Ratio: <span>{audit.slashed > 0 ? `${Math.round(audit.slashed / activeAgentData.bond_remaining * 100)}%` : "0%"}</span>
+                            Recorded At: <span>{audit.recorded_at}</span>
                           </div>
                         </div>
                       </div>
