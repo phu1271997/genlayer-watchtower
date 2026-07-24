@@ -1,9 +1,15 @@
 # v0.2.16
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
+# Determinism fixes:
+#   - _now_u256 sources time from gl.message_raw['datetime'] (deterministic per transaction)
+#     instead of Python time.time() (validator-local, non-deterministic).
+#   - evaluate_appeal now routes the appeal verdict through gl.eq_principle.prompt_comparative
+#     so validators must agree on overturned/verdict/severity/slash_ratio, not just the
+#     leader's raw output.
 from genlayer import *
+import datetime
 import json
 import re
-import time
 
 
 _VERDICTS = {"COMPLIANT", "WARNING", "VIOLATION"}
@@ -14,6 +20,15 @@ _SEMANTIC_PRINCIPLE = (
     "(c) the slash_ratio values are within +/-15 points, "
     "(d) the reasoning paragraphs cite at least one overlapping concrete behavior artifact "
     "(same transaction hash, same dollar amount, same mandate clause keyword)."
+)
+_APPEAL_PRINCIPLE = (
+    "Two appeal re-evaluations agree if and only if: "
+    "(a) the overturned boolean is identical, "
+    "(b) the verdict labels (COMPLIANT/WARNING/VIOLATION) are identical, "
+    "(c) the severity values are within +/-15 points, "
+    "(d) the slash_ratio values are within +/-15 points, "
+    "(e) both reasonings explicitly address the appellant argument and cite at least "
+    "one overlapping concrete behavior artifact (transaction hash, amount, mandate clause keyword)."
 )
 _STOP_WORDS = {
     "about",
@@ -276,7 +291,20 @@ class Contract(gl.Contract):
         self._user_error("unsupported address input")
 
     def _now_u256(self) -> u256:
-        return u256(int(time.time()))
+        if hasattr(gl.message, "timestamp"):
+            return u256(int(gl.message.timestamp))
+        try:
+            dt = gl.message_raw.get("datetime")
+            if hasattr(dt, "timestamp"):
+                return u256(int(dt.timestamp()))
+            if isinstance(dt, (int, float)):
+                return u256(int(dt))
+            if isinstance(dt, str):
+                parsed = datetime.datetime.fromisoformat(dt.replace("Z", "+00:00"))
+                return u256(int(parsed.timestamp()))
+        except Exception:
+            pass
+        return u256(0)
 
     def _require_admin(self) -> None:
         if gl.message.sender_address != self.admin:
@@ -642,7 +670,26 @@ class Contract(gl.Contract):
             )
             return gl.nondet.exec_prompt(prompt, response_format="json")
 
-        result = leader_fn()
+        def validator_fn(leader_result) -> bool:
+            validator_result = leader_fn()
+            leader_report = _parse_report_payload(leader_result)
+            validator_report = _parse_report_payload(validator_result)
+            if leader_report.get("canary") != canary or validator_report.get("canary") != canary:
+                return False
+            if bool(leader_report.get("overturned")) != bool(validator_report.get("overturned")):
+                return False
+            if str(leader_report.get("verdict")) != str(validator_report.get("verdict")):
+                return False
+            if abs(int(leader_report.get("severity", 0)) - int(validator_report.get("severity", 0))) > 15:
+                return False
+            if abs(int(leader_report.get("slash_ratio", 0)) - int(validator_report.get("slash_ratio", 0))) > 15:
+                return False
+            return True
+
+        try:
+            result = gl.eq_principle.prompt_comparative(leader_fn, principle=_APPEAL_PRINCIPLE)
+        except Exception:
+            result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         report = _parse_report_payload(result)
         if report["canary"] != canary:
             report["overturned"] = False
