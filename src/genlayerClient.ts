@@ -11,6 +11,7 @@ export const WATCHTOWER_METHODS = {
   claim: "claim",
   getAgent: "get_agent",
   getAudit: "get_audit",
+  getFullAudit: "get_full_audit",
   listAuditsOfAgent: "list_audits_of_agent",
   getPenaltyPool: "get_penalty_pool",
   getPendingBalance: "get_pending_balance",

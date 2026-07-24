@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getGenLayerClient, CONTRACT_ADDRESS, RPC_URL, generatePrivateKey } from "./genlayerClient";
+import { AuditCard } from "./components/AuditCard";
 import "./App.css";
 
 interface AuditReport {
@@ -10,6 +11,14 @@ interface AuditReport {
   severity: number;
   slashed: number;
   reasoning: string;
+  confidence: number;
+  evidence_quality: number;
+  perspectives: {
+    compliance?: string;
+    forensic?: string;
+    risk?: string;
+  };
+  sources_used: string[];
   recorded_at: number;
 }
 
@@ -18,6 +27,9 @@ interface AgentState {
   owner: string;
   mandate: string;
   evidence_url: string;
+  agent_wallet_address: string;
+  github_repo: string;
+  social_url: string;
   bond_remaining: number;
   status: string;
   registered_at: number;
@@ -58,6 +70,9 @@ function App() {
   const [regId, setRegId] = useState<string>("");
   const [regMandate, setRegMandate] = useState<string>("");
   const [regEvidenceUrl, setRegEvidenceUrl] = useState<string>("");
+  const [regWalletAddress, setRegWalletAddress] = useState<string>("");
+  const [regGithubRepo, setRegGithubRepo] = useState<string>("");
+  const [regSocialUrl, setRegSocialUrl] = useState<string>("");
   const [regBond, setRegBond] = useState<string>("1000");
 
   // Interaction Forms
@@ -175,7 +190,7 @@ function App() {
         auditIds.map(async (auditId) => {
           const res = await client.readContract({
             address: CONTRACT_ADDRESS,
-            functionName: "get_audit",
+            functionName: "get_full_audit",
             args: [auditId],
           });
           return JSON.parse(String(res)) as AuditReport;
@@ -266,7 +281,15 @@ function App() {
       const txHash = await client.writeContract({
         address: CONTRACT_ADDRESS,
         functionName: "register_agent",
-        args: [regId, regMandate, regEvidenceUrl, BigInt(registerBondValue)],
+        args: [
+          regId,
+          regMandate,
+          regEvidenceUrl,
+          BigInt(registerBondValue),
+          regWalletAddress,
+          regGithubRepo,
+          regSocialUrl,
+        ],
         value: BigInt(registerBondValue),
       });
 
@@ -289,11 +312,15 @@ function App() {
       setRegId("");
       setRegMandate("");
       setRegEvidenceUrl("");
+      setRegWalletAddress("");
+      setRegGithubRepo("");
+      setRegSocialUrl("");
       
       // Focus on registered agent
       setSelectedAgentId(regId);
       await fetchAgentDetails(regId);
       await fetchPenaltyPool();
+      await fetchPendingBalance(activeAddress);
     } catch (err: any) {
       console.error(err);
       addLog(`[Register Error] ${err.message || err.toString()}`, "error");
@@ -389,10 +416,10 @@ function App() {
       });
       const parsed = JSON.parse(String(res)) as AgentState;
       const latestAuditId = parsed.audit_ids[parsed.audit_ids.length - 1];
-      const latestAuditRes = latestAuditId
+          const latestAuditRes = latestAuditId
         ? await refreshedClient.readContract({
             address: CONTRACT_ADDRESS,
-            functionName: "get_audit",
+            functionName: "get_full_audit",
             args: [latestAuditId],
           })
         : null;
@@ -400,6 +427,7 @@ function App() {
       if (latestAudit) {
         const severityColor = latestAudit.severity >= 60 ? "error" : latestAudit.severity >= 30 ? "warning" : "success";
         addLog(`[Verdict] Reporter: ${latestAudit.reporter_label || latestAudit.reporter} | Verdict: ${latestAudit.verdict} (Severity: ${latestAudit.severity}/100)`, severityColor);
+        addLog(`[Signal] Confidence ${latestAudit.confidence}/100 | Evidence Quality ${latestAudit.evidence_quality}/100`, "info");
         addLog(`[Reasoning] ${latestAudit.reasoning}`, "info");
         if (latestAudit.slashed > 0) {
           addLog(`[Slashing Alert] Slashed ${latestAudit.slashed} GEN units from the bond into the penalty pool.`, "error");
@@ -626,6 +654,42 @@ function App() {
                 />
               </div>
 
+              <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
+                <div>
+                  <label className="form-label">Agent Wallet (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input form-input-mono"
+                    placeholder="0x..."
+                    value={regWalletAddress}
+                    onChange={(e) => setRegWalletAddress(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">GitHub Repo (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="owner/repo"
+                    value={regGithubRepo}
+                    onChange={(e) => setRegGithubRepo(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Social URL (Optional)</label>
+                  <input
+                    type="url"
+                    className="form-input"
+                    placeholder="https://x.com/..."
+                    value={regSocialUrl}
+                    onChange={(e) => setRegSocialUrl(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
               <button type="submit" className="btn btn-primary" disabled={isLoading}>
                 {isLoading ? "Broadcasting to GenLayer..." : "🔒 Lock Bond & Register Agent"}
               </button>
@@ -676,6 +740,30 @@ function App() {
                   <div className="mandate-quote" style={{ fontFamily: "var(--font-mono)", marginBottom: "1rem" }}>
                     {activeAgentData.owner}
                   </div>
+                  {(activeAgentData.agent_wallet_address || activeAgentData.github_repo || activeAgentData.social_url) && (
+                    <div style={{ display: "grid", gap: "0.5rem", marginBottom: "1rem" }}>
+                      {activeAgentData.agent_wallet_address && (
+                        <div>
+                          <span className="form-label">Agent Wallet</span>
+                          <div className="mandate-quote" style={{ fontFamily: "var(--font-mono)" }}>
+                            {activeAgentData.agent_wallet_address}
+                          </div>
+                        </div>
+                      )}
+                      {activeAgentData.github_repo && (
+                        <div>
+                          <span className="form-label">GitHub Repo</span>
+                          <div className="mandate-quote">{activeAgentData.github_repo}</div>
+                        </div>
+                      )}
+                      {activeAgentData.social_url && (
+                        <div>
+                          <span className="form-label">Social URL</span>
+                          <div className="mandate-quote">{activeAgentData.social_url}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <span className="form-label">Ủy thác hoạt động (Fiduciary Mandate)</span>
                   <div className="mandate-quote">
                     "{activeAgentData.mandate}"
@@ -780,39 +868,7 @@ function App() {
                   </p>
                 ) : (
                   <div className="audit-timeline">
-                    {activeAuditReports.slice().reverse().map((audit) => (
-                      <div 
-                        key={audit.id} 
-                        className={`audit-node node-${audit.verdict.toLowerCase()}`}
-                      >
-                        <div className="audit-meta">
-                          <span className={`audit-verdict ${audit.verdict.toLowerCase()}`}>
-                            {audit.verdict}
-                          </span>
-                          <span className="audit-reporter">
-                            Audit #{audit.id} by <strong>{audit.reporter_label || audit.reporter}</strong>
-                          </span>
-                          {audit.slashed > 0 && (
-                            <span className="audit-slashed">
-                              -{audit.slashed} units slashed
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="audit-reasoning">
-                          {audit.reasoning}
-                        </div>
-                        
-                        <div className="audit-details-row">
-                          <div className="audit-detail-item">
-                            Severity: <span>{audit.severity}/100</span>
-                          </div>
-                          <div className="audit-detail-item">
-                            Recorded At: <span>{audit.recorded_at}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                    {activeAuditReports.slice().reverse().map((audit) => <AuditCard key={audit.id} audit={audit} />)}
                   </div>
                 )}
               </section>

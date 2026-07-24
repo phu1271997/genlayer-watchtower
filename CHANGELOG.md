@@ -1,5 +1,28 @@
 # Changelog
 
+## [v2.M2] - AI Consensus Upgrade: Multi-Source Behavior Aggregation - 2026-06-21
+### Added
+- Multi-source audit collection across primary text, primary screenshot, web archive, wallet explorer, GitHub commits, and optional social signals.
+- Richer verdict metadata: `confidence`, `evidence_quality`, `perspectives`, and `sources_used`.
+- `get_full_audit` view and `docs/AI_CONSENSUS.md`.
+- Optional agent metadata fields for wallet, GitHub repo, and social URL.
+
+### Changed
+- The audit prompt now reasons from Compliance Officer, Forensic Auditor, and Risk Manager perspectives before concluding.
+- High-severity low-confidence verdicts now land in `NEEDS_REVIEW` instead of freezing immediately.
+- Low-evidence-quality verdicts cap slash severity to reduce overreaction to weak signals.
+
+### Fixed
+- Single-source evidence dependence is replaced by a broader evidence pack that is harder to game.
+
+### Security
+- Comparative consensus is now applied to a richer verdict shape while still preserving semantic fallback behavior.
+
+### Evidence
+- before/after screenshots: `docs/evidence/m2/`
+- tests added: `tests/test_multisource.py`, `tests/test_perspectives.py`, `tests/test_eq_principle.py`
+- quantifiable metric: audit input surface expanded from 1 rendered source to up to 6 labeled sources plus three perspective summaries
+
 ## [v2.M6] - Documentation, Architecture, Tests, and CI - 2026-06-21
 ### Added
 - `ARCHITECTURE.md`, `ECONOMICS.md`, `CONTRIBUTING.md`, `README.vi.md`, and `docs/VIDEO_SCRIPT.md`.
