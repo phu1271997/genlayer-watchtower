@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { getGenLayerClient, CONTRACT_ADDRESS, RPC_URL, generatePrivateKey } from "./genlayerClient";
 import { AuditCard } from "./components/AuditCard";
 import { AppealModal } from "./components/AppealModal";
+import { CategoryAdminPanel } from "./components/CategoryAdminPanel";
+import { CategoryDropdown } from "./components/CategoryDropdown";
 import { ProbationBadge } from "./components/ProbationBadge";
 import { ReporterLeaderboard } from "./components/ReporterLeaderboard";
 import "./App.css";
@@ -33,6 +35,7 @@ interface AgentState {
   agent_wallet_address: string;
   github_repo: string;
   social_url: string;
+  category: string;
   bond_remaining: number;
   status: string;
   registered_at: number;
@@ -49,6 +52,13 @@ interface ReporterEntry {
   audit_count: number;
   overturned_count: number;
   score: number;
+}
+
+interface CategoryOption {
+  category: string;
+  threshold: number;
+  rubric: string;
+  template: string;
 }
 
 interface LogLine {
@@ -79,11 +89,13 @@ function App() {
   const [activeAgentData, setActiveAgentData] = useState<AgentState | null>(null);
   const [activeAuditReports, setActiveAuditReports] = useState<AuditReport[]>([]);
   const [topReporters, setTopReporters] = useState<ReporterEntry[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
 
   // Register Form
   const [regId, setRegId] = useState<string>("");
   const [regMandate, setRegMandate] = useState<string>("");
   const [regEvidenceUrl, setRegEvidenceUrl] = useState<string>("");
+  const [regCategory, setRegCategory] = useState<string>("OTHER");
   const [regWalletAddress, setRegWalletAddress] = useState<string>("");
   const [regGithubRepo, setRegGithubRepo] = useState<string>("");
   const [regSocialUrl, setRegSocialUrl] = useState<string>("");
@@ -152,6 +164,7 @@ function App() {
       fetchPendingBalance(activeAddress);
     }
     fetchTopReporters();
+    fetchCategories();
   }, [selectedAgentId, activeAddress]);
 
   // Auto-scroll console
@@ -207,6 +220,20 @@ function App() {
     } catch (e) {
       console.error("Failed to fetch reporters", e);
       setTopReporters([]);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const client = getGenLayerClient(privateKey);
+      const res = await client.readContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "get_categories",
+      });
+      setCategories(JSON.parse(String(res)) as CategoryOption[]);
+    } catch (e) {
+      console.error("Failed to fetch categories", e);
+      setCategories([]);
     }
   };
 
@@ -318,6 +345,7 @@ function App() {
           regMandate,
           regEvidenceUrl,
           BigInt(registerBondValue),
+          regCategory,
           regWalletAddress,
           regGithubRepo,
           regSocialUrl,
@@ -344,6 +372,7 @@ function App() {
       setRegId("");
       setRegMandate("");
       setRegEvidenceUrl("");
+      setRegCategory("OTHER");
       setRegWalletAddress("");
       setRegGithubRepo("");
       setRegSocialUrl("");
@@ -716,6 +745,24 @@ function App() {
                 />
               </div>
 
+              <div className="form-group">
+                <label className="form-label">Agent Category</label>
+                <CategoryDropdown categories={categories} value={regCategory} onChange={setRegCategory} />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ marginTop: "0.75rem" }}
+                  onClick={() => {
+                    const selected = categories.find((item) => item.category === regCategory);
+                    if (selected?.template) {
+                      setRegMandate(selected.template);
+                    }
+                  }}
+                >
+                  Autofill Mandate Template
+                </button>
+              </div>
+
               <div className="form-group" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
                 <div>
                   <label className="form-label">Agent Wallet (Optional)</label>
@@ -767,6 +814,9 @@ function App() {
                     <h2>
                       🤖 {activeAgentData.id}
                     </h2>
+                    <div className="registry-status active" style={{ display: "inline-flex", width: "fit-content", marginBottom: "0.5rem" }}>
+                      {activeAgentData.category}
+                    </div>
                     <a
                       href={activeAgentData.evidence_url}
                       target="_blank"
@@ -956,6 +1006,11 @@ function App() {
               <section className="card" style={{ marginBottom: 0 }}>
                 <h2 className="card-title">🏆 Reporter Leaderboard</h2>
                 <ReporterLeaderboard reporters={topReporters} />
+              </section>
+
+              <section className="card" style={{ marginBottom: 0 }}>
+                <h2 className="card-title">🗂️ Category Rubrics</h2>
+                <CategoryAdminPanel categories={categories} />
               </section>
             </div>
           ) : (

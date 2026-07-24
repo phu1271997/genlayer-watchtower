@@ -1,5 +1,27 @@
 # Changelog
 
+## [v2.M4] - Agent Categories + Category-Specific Rubrics - 2026-06-21
+### Added
+- Agent categories, category rubrics, category thresholds, and mandate templates.
+- `get_categories` plus admin setters for rubric, threshold, and template overrides.
+- Category-aware registration UI, rubric panel, and mandate autofill.
+- Seed scaffold at `scripts/seed_categories.ts`.
+
+### Changed
+- Audit prompts now include agent category and category-specific rubric text.
+- Severity thresholds are category-aware, with `DEFI_TRADING` stricter than generic agents by default.
+
+### Fixed
+- Watchtower no longer evaluates all agents through one generic fiduciary rubric.
+
+### Security
+- High-risk categories can now adopt lower default thresholds without changing the global contract threshold.
+
+### Evidence
+- before/after screenshots: `docs/evidence/m4/`
+- tests added: `tests/test_categories.py`, `tests/test_mandate_template.py`
+- quantifiable metric: 7 curated categories now drive tailored rubric text and thresholds
+
 ## [v2.M3] - Appeal Flow + Probation + Reporter Rewards - 2026-06-21
 ### Added
 - Appeal storage and flows with `file_appeal`, `evaluate_appeal`, and `get_appeal`.
