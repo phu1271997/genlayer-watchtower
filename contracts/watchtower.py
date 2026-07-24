@@ -7,7 +7,6 @@
 #     so validators must agree on overturned/verdict/severity/slash_ratio, not just the
 #     leader's raw output.
 from genlayer import *
-import datetime
 import json
 import re
 
@@ -292,16 +291,16 @@ class Contract(gl.Contract):
 
     def _now_u256(self) -> u256:
         if hasattr(gl.message, "timestamp"):
-            return u256(int(gl.message.timestamp))
+            try:
+                return u256(int(gl.message.timestamp))
+            except Exception:
+                pass
         try:
             dt = gl.message_raw.get("datetime")
             if hasattr(dt, "timestamp"):
                 return u256(int(dt.timestamp()))
             if isinstance(dt, (int, float)):
                 return u256(int(dt))
-            if isinstance(dt, str):
-                parsed = datetime.datetime.fromisoformat(dt.replace("Z", "+00:00"))
-                return u256(int(parsed.timestamp()))
         except Exception:
             pass
         return u256(0)
