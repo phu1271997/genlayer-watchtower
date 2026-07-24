@@ -1,9 +1,11 @@
 # v0.2.16
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
+# Determinism fix: _now_u256 sources time from gl.message_raw['datetime']
+# (deterministic per transaction) instead of Python time.time().
 from genlayer import *
+import datetime
 import json
 import re
-import time
 
 
 _VERDICTS = {"COMPLIANT", "WARNING", "VIOLATION"}
@@ -251,7 +253,20 @@ class Contract(gl.Contract):
         self._user_error("unsupported address input")
 
     def _now_u256(self) -> u256:
-        return u256(int(time.time()))
+        if hasattr(gl.message, "timestamp"):
+            return u256(int(gl.message.timestamp))
+        try:
+            dt = gl.message_raw.get("datetime")
+            if hasattr(dt, "timestamp"):
+                return u256(int(dt.timestamp()))
+            if isinstance(dt, (int, float)):
+                return u256(int(dt))
+            if isinstance(dt, str):
+                parsed = datetime.datetime.fromisoformat(dt.replace("Z", "+00:00"))
+                return u256(int(parsed.timestamp()))
+        except Exception:
+            pass
+        return u256(0)
 
     def _require_admin(self) -> None:
         if gl.message.sender_address != self.admin:
