@@ -278,42 +278,42 @@ class Contract(gl.Contract):
     agent_probation_until_of: TreeMap[str, u256]
     agent_appeal_locked_of: TreeMap[str, bool]
     latest_appeal_of_agent: TreeMap[str, u256]
-    pending_balance_of: TreeMap[Address, u256]
-    audit_agent_of: TreeMap[u256, str]
-    audit_reporter_of: TreeMap[u256, Address]
-    audit_reporter_label_of: TreeMap[u256, str]
-    audit_verdict_of: TreeMap[u256, str]
-    audit_severity_of: TreeMap[u256, u256]
-    audit_slashed_of: TreeMap[u256, u256]
-    audit_reasoning_of: TreeMap[u256, str]
-    audit_confidence_of: TreeMap[u256, u256]
-    audit_evidence_quality_of: TreeMap[u256, u256]
-    audit_perspectives_of: TreeMap[u256, str]
-    audit_sources_used_of: TreeMap[u256, str]
-    audit_canary_of: TreeMap[u256, str]
-    audit_block_of: TreeMap[u256, u256]
-    appeal_agent_of: TreeMap[u256, str]
-    appeal_appellant_of: TreeMap[u256, Address]
-    appeal_stake_of: TreeMap[u256, u256]
-    appeal_argument_of: TreeMap[u256, str]
-    appeal_status_of: TreeMap[u256, str]
-    appeal_new_verdict_of: TreeMap[u256, str]
-    appeal_source_audit_of: TreeMap[u256, u256]
-    reporter_address_of: TreeMap[u256, Address]
-    reporter_index_of: TreeMap[Address, u256]
-    reporter_total_rewarded_of: TreeMap[Address, u256]
-    reporter_audit_count_of: TreeMap[Address, u256]
-    reporter_overturned_count_of: TreeMap[Address, u256]
+    pending_balance_of: TreeMap[str, u256]
+    audit_agent_of: TreeMap[str, str]
+    audit_reporter_of: TreeMap[str, Address]
+    audit_reporter_label_of: TreeMap[str, str]
+    audit_verdict_of: TreeMap[str, str]
+    audit_severity_of: TreeMap[str, u256]
+    audit_slashed_of: TreeMap[str, u256]
+    audit_reasoning_of: TreeMap[str, str]
+    audit_confidence_of: TreeMap[str, u256]
+    audit_evidence_quality_of: TreeMap[str, u256]
+    audit_perspectives_of: TreeMap[str, str]
+    audit_sources_used_of: TreeMap[str, str]
+    audit_canary_of: TreeMap[str, str]
+    audit_block_of: TreeMap[str, u256]
+    appeal_agent_of: TreeMap[str, str]
+    appeal_appellant_of: TreeMap[str, Address]
+    appeal_stake_of: TreeMap[str, u256]
+    appeal_argument_of: TreeMap[str, str]
+    appeal_status_of: TreeMap[str, str]
+    appeal_new_verdict_of: TreeMap[str, str]
+    appeal_source_audit_of: TreeMap[str, u256]
+    reporter_address_of: TreeMap[str, Address]
+    reporter_index_of: TreeMap[str, u256]
+    reporter_total_rewarded_of: TreeMap[str, u256]
+    reporter_audit_count_of: TreeMap[str, u256]
+    reporter_overturned_count_of: TreeMap[str, u256]
     category_rubric_of: TreeMap[str, str]
     category_default_threshold_of: TreeMap[str, u256]
     mandate_template_of: TreeMap[str, str]
-    supported_bond_tokens: TreeMap[Address, bool]
+    supported_bond_tokens: TreeMap[str, bool]
     pending_balance_token_of: TreeMap[str, u256]
-    agent_id_at_index: TreeMap[u256, str]
-    watchlist_owner_of: TreeMap[u256, Address]
-    watchlist_name_of: TreeMap[u256, str]
-    watchlist_agents_of: TreeMap[u256, str]
-    watchlist_subscriber_count_of: TreeMap[u256, u256]
+    agent_id_at_index: TreeMap[str, str]
+    watchlist_owner_of: TreeMap[str, Address]
+    watchlist_name_of: TreeMap[str, str]
+    watchlist_agents_of: TreeMap[str, str]
+    watchlist_subscriber_count_of: TreeMap[str, u256]
     watchlist_subscription_of: TreeMap[str, bool]
 
     def __init__(self):
@@ -353,6 +353,12 @@ class Contract(gl.Contract):
 
         self._user_error("unsupported address input")
 
+    def _akey(self, address) -> str:
+        try:
+            return address.as_hex.lower()
+        except Exception:
+            return str(address).lower()
+
     def _now_u256(self) -> u256:
         if hasattr(gl.message, "timestamp"):
             try:
@@ -377,9 +383,20 @@ class Contract(gl.Contract):
         if agent_id not in self.agent_owner_of:
             self._user_error("agent not found")
 
+    def _norm_key(self, key):
+        if isinstance(key, str):
+            return key.lower() if key.startswith("0x") else key
+        if hasattr(key, "as_hex"):
+            return self._akey(key)
+        try:
+            return str(int(key))
+        except Exception:
+            return str(key)
+
     def _u256_or_zero(self, store, key) -> int:
-        if key in store:
-            return int(store[key])
+        normalized = self._norm_key(key)
+        if normalized in store:
+            return int(store[normalized])
         return 0
 
     def _audit_slot_key(self, agent_id: str, index: int) -> str:
@@ -446,8 +463,8 @@ class Contract(gl.Contract):
         if reporter_address in self.reporter_index_of:
             return
         self.reporter_count = u256(int(self.reporter_count) + 1)
-        self.reporter_index_of[reporter_address] = self.reporter_count
-        self.reporter_address_of[self.reporter_count] = reporter_address
+        self.reporter_index_of[self._akey(reporter_address)] = self.reporter_count
+        self.reporter_address_of[str(int(self.reporter_count))] = reporter_address
 
     def _serialize_reporter(self, reporter_address: Address) -> dict[str, object]:
         return {
@@ -487,39 +504,39 @@ class Contract(gl.Contract):
         return f"{str(token).lower()}|{str(owner).lower()}"
 
     def _serialize_audit(self, audit_id: int) -> dict[str, object]:
-        audit_key = u256(audit_id)
+        audit_key = str(int(audit_id))
         reporter = ""
         if audit_key in self.audit_reporter_of:
-            reporter = str(self.audit_reporter_of[audit_key])
+            reporter = str(self.audit_reporter_of[str(int(audit_key))])
 
         return {
             "id": audit_id,
-            "agent_id": self.audit_agent_of[audit_key],
+            "agent_id": self.audit_agent_of[str(int(audit_key))],
             "reporter": reporter,
-            "reporter_label": self.audit_reporter_label_of[audit_key] if audit_key in self.audit_reporter_label_of else "",
-            "verdict": self.audit_verdict_of[audit_key],
-            "severity": int(self.audit_severity_of[audit_key]),
-            "slashed": int(self.audit_slashed_of[audit_key]),
-            "reasoning": self.audit_reasoning_of[audit_key],
-            "confidence": int(self.audit_confidence_of[audit_key]) if audit_key in self.audit_confidence_of else 0,
-            "evidence_quality": int(self.audit_evidence_quality_of[audit_key]) if audit_key in self.audit_evidence_quality_of else 0,
-            "perspectives": json.loads(self.audit_perspectives_of[audit_key]) if audit_key in self.audit_perspectives_of else {},
-            "sources_used": json.loads(self.audit_sources_used_of[audit_key]) if audit_key in self.audit_sources_used_of else [],
-            "canary": self.audit_canary_of[audit_key] if audit_key in self.audit_canary_of else "",
-            "recorded_at": int(self.audit_block_of[audit_key]),
+            "reporter_label": self.audit_reporter_label_of[str(int(audit_key))] if audit_key in self.audit_reporter_label_of else "",
+            "verdict": self.audit_verdict_of[str(int(audit_key))],
+            "severity": int(self.audit_severity_of[str(int(audit_key))]),
+            "slashed": int(self.audit_slashed_of[str(int(audit_key))]),
+            "reasoning": self.audit_reasoning_of[str(int(audit_key))],
+            "confidence": int(self.audit_confidence_of[str(int(audit_key))]) if audit_key in self.audit_confidence_of else 0,
+            "evidence_quality": int(self.audit_evidence_quality_of[str(int(audit_key))]) if audit_key in self.audit_evidence_quality_of else 0,
+            "perspectives": json.loads(self.audit_perspectives_of[str(int(audit_key))]) if audit_key in self.audit_perspectives_of else {},
+            "sources_used": json.loads(self.audit_sources_used_of[str(int(audit_key))]) if audit_key in self.audit_sources_used_of else [],
+            "canary": self.audit_canary_of[str(int(audit_key))] if audit_key in self.audit_canary_of else "",
+            "recorded_at": int(self.audit_block_of[str(int(audit_key))]),
         }
 
     def _serialize_appeal(self, appeal_id: int) -> dict[str, object]:
-        appeal_key = u256(appeal_id)
+        appeal_key = str(int(appeal_id))
         return {
             "id": appeal_id,
-            "agent_id": self.appeal_agent_of[appeal_key],
-            "appellant": str(self.appeal_appellant_of[appeal_key]),
-            "stake": int(self.appeal_stake_of[appeal_key]),
-            "argument": self.appeal_argument_of[appeal_key],
-            "status": self.appeal_status_of[appeal_key],
-            "new_verdict": self.appeal_new_verdict_of[appeal_key] if appeal_key in self.appeal_new_verdict_of else "",
-            "source_audit_id": int(self.appeal_source_audit_of[appeal_key]) if appeal_key in self.appeal_source_audit_of else 0,
+            "agent_id": self.appeal_agent_of[str(int(appeal_key))],
+            "appellant": str(self.appeal_appellant_of[str(int(appeal_key))]),
+            "stake": int(self.appeal_stake_of[str(int(appeal_key))]),
+            "argument": self.appeal_argument_of[str(int(appeal_key))],
+            "status": self.appeal_status_of[str(int(appeal_key))],
+            "new_verdict": self.appeal_new_verdict_of[str(int(appeal_key))] if appeal_key in self.appeal_new_verdict_of else "",
+            "source_audit_id": int(self.appeal_source_audit_of[str(int(appeal_key))]) if appeal_key in self.appeal_source_audit_of else 0,
         }
 
     def _serialize_agent(self, agent_id: str) -> dict[str, object]:
@@ -603,7 +620,7 @@ class Contract(gl.Contract):
         self.agent_appeal_locked_of[normalized_id] = False
         self.latest_appeal_of_agent[normalized_id] = u256(0)
         self.agent_count = u256(int(self.agent_count) + 1)
-        self.agent_id_at_index[self.agent_count] = normalized_id
+        self.agent_id_at_index[str(int(self.agent_count))] = normalized_id
 
         return json.dumps(self._serialize_agent(normalized_id))
 
@@ -666,17 +683,17 @@ class Contract(gl.Contract):
         return self.mandate_template_of[normalized]
 
     @gl.public.write
-    def add_supported_token(self, token) -> bool:
+    def add_supported_token(self, token: str) -> bool:
         self._require_admin()
         token_address = self._to_address(token)
-        self.supported_bond_tokens[token_address] = True
+        self.supported_bond_tokens[self._akey(token_address)] = True
         return True
 
     @gl.public.write
-    def remove_supported_token(self, token) -> bool:
+    def remove_supported_token(self, token: str) -> bool:
         self._require_admin()
         token_address = self._to_address(token)
-        self.supported_bond_tokens[token_address] = False
+        self.supported_bond_tokens[self._akey(token_address)] = False
         return True
 
     @gl.public.write
@@ -686,14 +703,14 @@ class Contract(gl.Contract):
         mandate: str,
         evidence_url: str,
         category: str,
-        token,
+        token: str,
         amount: int,
         agent_wallet_address: str = "",
         github_repo: str = "",
         social_url: str = "",
     ) -> str:
         token_address = self._to_address(token)
-        if token_address not in self.supported_bond_tokens or not self.supported_bond_tokens[token_address]:
+        if token_address not in self.supported_bond_tokens or not self.supported_bond_tokens[self._akey(token_address)]:
             self._user_error("token is not supported")
         if amount <= 0:
             self._user_error("token bond amount must be positive")
@@ -726,7 +743,7 @@ class Contract(gl.Contract):
         self.agent_appeal_locked_of[normalized_id] = False
         self.latest_appeal_of_agent[normalized_id] = u256(0)
         self.agent_count = u256(int(self.agent_count) + 1)
-        self.agent_id_at_index[self.agent_count] = normalized_id
+        self.agent_id_at_index[str(int(self.agent_count))] = normalized_id
         return json.dumps(self._serialize_agent(normalized_id))
 
     @gl.public.write
@@ -745,7 +762,7 @@ class Contract(gl.Contract):
         return json.dumps(self._serialize_agent(agent_id))
 
     @gl.public.write
-    def claim_token(self, token) -> int:
+    def claim_token(self, token: str) -> int:
         token_address = self._to_address(token)
         balance_key = self._token_balance_key(token_address, gl.message.sender_address)
         amount = self._u256_or_zero(self.pending_balance_token_of, balance_key)
@@ -760,57 +777,57 @@ class Contract(gl.Contract):
     def create_watchlist(self, name: str) -> str:
         self.watchlist_count = u256(int(self.watchlist_count) + 1)
         watchlist_id = int(self.watchlist_count)
-        watchlist_key = u256(watchlist_id)
-        self.watchlist_owner_of[watchlist_key] = gl.message.sender_address
-        self.watchlist_name_of[watchlist_key] = name
-        self.watchlist_agents_of[watchlist_key] = "[]"
-        self.watchlist_subscriber_count_of[watchlist_key] = u256(0)
+        watchlist_key = str(int(watchlist_id))
+        self.watchlist_owner_of[str(int(watchlist_key))] = gl.message.sender_address
+        self.watchlist_name_of[str(int(watchlist_key))] = name
+        self.watchlist_agents_of[str(int(watchlist_key))] = "[]"
+        self.watchlist_subscriber_count_of[str(int(watchlist_key))] = u256(0)
         return self.get_watchlist(watchlist_id)
 
     @gl.public.write
     def add_to_watchlist(self, watchlist_id: int, agent_id: str) -> str:
-        watchlist_key = u256(max(watchlist_id, 0))
-        if self.watchlist_owner_of[watchlist_key] != gl.message.sender_address:
+        watchlist_key = str(int(max(watchlist_id, 0)))
+        if self.watchlist_owner_of[str(int(watchlist_key))] != gl.message.sender_address:
             self._user_error("only the watchlist owner can modify this watchlist")
-        agents = json.loads(self.watchlist_agents_of[watchlist_key])
+        agents = json.loads(self.watchlist_agents_of[str(int(watchlist_key))])
         if agent_id not in agents:
             agents.append(agent_id)
-        self.watchlist_agents_of[watchlist_key] = json.dumps(agents)
+        self.watchlist_agents_of[str(int(watchlist_key))] = json.dumps(agents)
         return self.get_watchlist(watchlist_id)
 
     @gl.public.write
     def remove_from_watchlist(self, watchlist_id: int, agent_id: str) -> str:
-        watchlist_key = u256(max(watchlist_id, 0))
-        if self.watchlist_owner_of[watchlist_key] != gl.message.sender_address:
+        watchlist_key = str(int(max(watchlist_id, 0)))
+        if self.watchlist_owner_of[str(int(watchlist_key))] != gl.message.sender_address:
             self._user_error("only the watchlist owner can modify this watchlist")
-        agents = [item for item in json.loads(self.watchlist_agents_of[watchlist_key]) if item != agent_id]
-        self.watchlist_agents_of[watchlist_key] = json.dumps(agents)
+        agents = [item for item in json.loads(self.watchlist_agents_of[str(int(watchlist_key))]) if item != agent_id]
+        self.watchlist_agents_of[str(int(watchlist_key))] = json.dumps(agents)
         return self.get_watchlist(watchlist_id)
 
     @gl.public.write
     def subscribe_watchlist(self, watchlist_id: int) -> int:
-        watchlist_key = u256(max(watchlist_id, 0))
+        watchlist_key = str(int(max(watchlist_id, 0)))
         subscription_key = f"{watchlist_id}|{str(gl.message.sender_address).lower()}"
         if subscription_key not in self.watchlist_subscription_of or not self.watchlist_subscription_of[subscription_key]:
             self.watchlist_subscription_of[subscription_key] = True
-            self.watchlist_subscriber_count_of[watchlist_key] = u256(
+            self.watchlist_subscriber_count_of[str(int(watchlist_key))] = u256(
                 self._u256_or_zero(self.watchlist_subscriber_count_of, watchlist_key) + 1
             )
-        return int(self.watchlist_subscriber_count_of[watchlist_key])
+        return int(self.watchlist_subscriber_count_of[str(int(watchlist_key))])
 
     @gl.public.write
     def unsubscribe_watchlist(self, watchlist_id: int) -> int:
-        watchlist_key = u256(max(watchlist_id, 0))
+        watchlist_key = str(int(max(watchlist_id, 0)))
         subscription_key = f"{watchlist_id}|{str(gl.message.sender_address).lower()}"
         if subscription_key in self.watchlist_subscription_of and self.watchlist_subscription_of[subscription_key]:
             self.watchlist_subscription_of[subscription_key] = False
             count = self._u256_or_zero(self.watchlist_subscriber_count_of, watchlist_key)
             if count > 0:
-                self.watchlist_subscriber_count_of[watchlist_key] = u256(count - 1)
-        return int(self.watchlist_subscriber_count_of[watchlist_key])
+                self.watchlist_subscriber_count_of[str(int(watchlist_key))] = u256(count - 1)
+        return int(self.watchlist_subscriber_count_of[str(int(watchlist_key))])
 
     @gl.public.write
-    def withdraw_penalty_pool(self, to, amount: int) -> int:
+    def withdraw_penalty_pool(self, to: str, amount: int) -> int:
         self._require_admin()
         destination = self._to_address(to)
         withdraw_amount = int(amount)
@@ -821,8 +838,8 @@ class Contract(gl.Contract):
 
         current_pending = self._u256_or_zero(self.pending_balance_of, destination)
         self.penalty_pool = u256(int(self.penalty_pool) - withdraw_amount)
-        self.pending_balance_of[destination] = u256(current_pending + withdraw_amount)
-        return int(self.pending_balance_of[destination])
+        self.pending_balance_of[self._akey(destination)] = u256(current_pending + withdraw_amount)
+        return int(self.pending_balance_of[self._akey(destination)])
 
     @gl.public.write
     def withdraw_remaining_bond(self, agent_id: str) -> int:
@@ -839,7 +856,7 @@ class Contract(gl.Contract):
 
         current_pending = self._u256_or_zero(self.pending_balance_of, owner)
         self.agent_bond_of[agent_id] = u256(0)
-        self.pending_balance_of[owner] = u256(current_pending + remaining)
+        self.pending_balance_of[self._akey(owner)] = u256(current_pending + remaining)
         return remaining
 
     @gl.public.write
@@ -849,7 +866,7 @@ class Contract(gl.Contract):
         if amount <= 0:
             self._user_error("nothing to claim")
 
-        self.pending_balance_of[recipient] = u256(0)
+        self.pending_balance_of[self._akey(recipient)] = u256(0)
         _Recipient(recipient).emit_transfer(value=u256(amount), on="finalized")
         return amount
 
@@ -887,29 +904,29 @@ class Contract(gl.Contract):
 
         self.appeal_count = u256(int(self.appeal_count) + 1)
         appeal_id = int(self.appeal_count)
-        appeal_key = u256(appeal_id)
-        self.appeal_agent_of[appeal_key] = agent_id
-        self.appeal_appellant_of[appeal_key] = gl.message.sender_address
-        self.appeal_stake_of[appeal_key] = u256(stake)
-        self.appeal_argument_of[appeal_key] = argument
-        self.appeal_status_of[appeal_key] = "PENDING"
-        self.appeal_new_verdict_of[appeal_key] = ""
-        self.appeal_source_audit_of[appeal_key] = u256(last_audit_id)
+        appeal_key = str(int(appeal_id))
+        self.appeal_agent_of[str(int(appeal_key))] = agent_id
+        self.appeal_appellant_of[str(int(appeal_key))] = gl.message.sender_address
+        self.appeal_stake_of[str(int(appeal_key))] = u256(stake)
+        self.appeal_argument_of[str(int(appeal_key))] = argument
+        self.appeal_status_of[str(int(appeal_key))] = "PENDING"
+        self.appeal_new_verdict_of[str(int(appeal_key))] = ""
+        self.appeal_source_audit_of[str(int(appeal_key))] = u256(last_audit_id)
         self.latest_appeal_of_agent[agent_id] = appeal_key
         return json.dumps(self._serialize_appeal(appeal_id))
 
     @gl.public.write
     def evaluate_appeal(self, appeal_id: int) -> str:
-        appeal_key = u256(max(appeal_id, 0))
+        appeal_key = str(int(max(appeal_id, 0)))
         if appeal_key not in self.appeal_agent_of:
             self._user_error("appeal not found")
-        if self.appeal_status_of[appeal_key] != "PENDING":
+        if self.appeal_status_of[str(int(appeal_key))] != "PENDING":
             return json.dumps(self._serialize_appeal(int(appeal_key)))
 
-        agent_id = self.appeal_agent_of[appeal_key]
-        source_audit_id = int(self.appeal_source_audit_of[appeal_key])
+        agent_id = self.appeal_agent_of[str(int(appeal_key))]
+        source_audit_id = int(self.appeal_source_audit_of[str(int(appeal_key))])
         prior_audit = self._serialize_audit(source_audit_id)
-        argument = self.appeal_argument_of[appeal_key]
+        argument = self.appeal_argument_of[str(int(appeal_key))]
         source_descriptors = self._source_descriptors(agent_id)
         canary = self._build_canary(f"appeal-{agent_id}", appeal_id)
 
@@ -961,15 +978,15 @@ class Contract(gl.Contract):
             report["addresses_appeal"] = False
             report["reasoning"] = "canary verification failed"
 
-        stake = int(self.appeal_stake_of[appeal_key])
-        appellant = self.appeal_appellant_of[appeal_key]
+        stake = int(self.appeal_stake_of[str(int(appeal_key))])
+        appellant = self.appeal_appellant_of[str(int(appeal_key))]
         last_slashed = self._u256_or_zero(self.audit_slashed_of, u256(source_audit_id))
-        original_reporter = self.audit_reporter_of[u256(source_audit_id)]
+        original_reporter = self.audit_reporter_of[str(int(source_audit_id))]
         original_reward = last_slashed * int(self.reporter_reward_bps) // 10000
 
         if report["overturned"]:
-            self.appeal_status_of[appeal_key] = "OVERTURNED"
-            self.appeal_new_verdict_of[appeal_key] = str(report["verdict"])
+            self.appeal_status_of[str(int(appeal_key))] = "OVERTURNED"
+            self.appeal_new_verdict_of[str(int(appeal_key))] = str(report["verdict"])
             self.agent_status_of[agent_id] = "PROBATION"
             self.agent_probation_until_of[agent_id] = u256(int(self._now_u256()) + int(self.probation_length_seconds))
             self.agent_appeal_locked_of[agent_id] = False
@@ -980,19 +997,19 @@ class Contract(gl.Contract):
                 )
                 if int(self.penalty_pool) >= last_slashed:
                     self.penalty_pool = u256(int(self.penalty_pool) - last_slashed)
-            self.pending_balance_of[appellant] = u256(self._u256_or_zero(self.pending_balance_of, appellant) + stake)
+            self.pending_balance_of[self._akey(appellant)] = u256(self._u256_or_zero(self.pending_balance_of, appellant) + stake)
 
             reporter_total = self._u256_or_zero(self.reporter_total_rewarded_of, original_reporter)
             adjusted_total = reporter_total - original_reward
             if adjusted_total < 0:
                 adjusted_total = 0
-            self.reporter_total_rewarded_of[original_reporter] = u256(adjusted_total)
-            self.reporter_overturned_count_of[original_reporter] = u256(
+            self.reporter_total_rewarded_of[self._akey(original_reporter)] = u256(adjusted_total)
+            self.reporter_overturned_count_of[self._akey(original_reporter)] = u256(
                 self._u256_or_zero(self.reporter_overturned_count_of, original_reporter) + 1
             )
         else:
-            self.appeal_status_of[appeal_key] = "UPHELD"
-            self.appeal_new_verdict_of[appeal_key] = str(report["verdict"])
+            self.appeal_status_of[str(int(appeal_key))] = "UPHELD"
+            self.appeal_new_verdict_of[str(int(appeal_key))] = str(report["verdict"])
             self.penalty_pool = u256(int(self.penalty_pool) + stake)
 
         return json.dumps(self._serialize_appeal(int(appeal_key)))
@@ -1037,7 +1054,7 @@ class Contract(gl.Contract):
         category_precedents: list[str] = []
         agent_index = 1
         while agent_index <= int(self.agent_count):
-            peer_agent_id = self.agent_id_at_index[u256(agent_index)]
+            peer_agent_id = self.agent_id_at_index[str(int(agent_index))]
             if peer_agent_id != agent_id and self.agent_category_of[peer_agent_id] == category:
                 peer_last_audit_id = self._last_audit_id_of_agent(peer_agent_id)
                 if peer_last_audit_id > 0:
@@ -1143,7 +1160,7 @@ class Contract(gl.Contract):
         reporter_reward = 0
         reporter_address = gl.message.sender_address
         self._register_reporter(reporter_address)
-        self.reporter_audit_count_of[reporter_address] = u256(
+        self.reporter_audit_count_of[self._akey(reporter_address)] = u256(
             self._u256_or_zero(self.reporter_audit_count_of, reporter_address) + 1
         )
 
@@ -1167,10 +1184,10 @@ class Contract(gl.Contract):
             reporter_reward = slashed * int(self.reporter_reward_bps) // 10000
             penalty_amount = slashed - reporter_reward
             self.penalty_pool = u256(int(self.penalty_pool) + penalty_amount)
-            self.pending_balance_of[reporter_address] = u256(
+            self.pending_balance_of[self._akey(reporter_address)] = u256(
                 self._u256_or_zero(self.pending_balance_of, reporter_address) + reporter_reward
             )
-            self.reporter_total_rewarded_of[reporter_address] = u256(
+            self.reporter_total_rewarded_of[self._akey(reporter_address)] = u256(
                 self._u256_or_zero(self.reporter_total_rewarded_of, reporter_address) + reporter_reward
             )
 
@@ -1179,20 +1196,20 @@ class Contract(gl.Contract):
         self.audit_count = u256(int(self.audit_count) + 1)
 
         audit_id = int(self.audit_count)
-        audit_key = u256(audit_id)
-        self.audit_agent_of[audit_key] = agent_id
-        self.audit_reporter_of[audit_key] = gl.message.sender_address
-        self.audit_reporter_label_of[audit_key] = reporter
-        self.audit_verdict_of[audit_key] = verdict
-        self.audit_severity_of[audit_key] = u256(severity)
-        self.audit_slashed_of[audit_key] = u256(slashed)
-        self.audit_reasoning_of[audit_key] = str(report["reasoning"])
-        self.audit_confidence_of[audit_key] = u256(confidence)
-        self.audit_evidence_quality_of[audit_key] = u256(evidence_quality)
-        self.audit_perspectives_of[audit_key] = json.dumps(report["perspectives"])
-        self.audit_sources_used_of[audit_key] = json.dumps(report["sources_used"])
-        self.audit_canary_of[audit_key] = canary
-        self.audit_block_of[audit_key] = u256(now_value)
+        audit_key = str(int(audit_id))
+        self.audit_agent_of[str(int(audit_key))] = agent_id
+        self.audit_reporter_of[str(int(audit_key))] = gl.message.sender_address
+        self.audit_reporter_label_of[str(int(audit_key))] = reporter
+        self.audit_verdict_of[str(int(audit_key))] = verdict
+        self.audit_severity_of[str(int(audit_key))] = u256(severity)
+        self.audit_slashed_of[str(int(audit_key))] = u256(slashed)
+        self.audit_reasoning_of[str(int(audit_key))] = str(report["reasoning"])
+        self.audit_confidence_of[str(int(audit_key))] = u256(confidence)
+        self.audit_evidence_quality_of[str(int(audit_key))] = u256(evidence_quality)
+        self.audit_perspectives_of[str(int(audit_key))] = json.dumps(report["perspectives"])
+        self.audit_sources_used_of[str(int(audit_key))] = json.dumps(report["sources_used"])
+        self.audit_canary_of[str(int(audit_key))] = canary
+        self.audit_block_of[str(int(audit_key))] = u256(now_value)
         self.agent_audit_id_of[self._audit_slot_key(agent_id, next_audit_index - 1)] = audit_key
 
         return json.dumps(self._serialize_agent(agent_id))
@@ -1205,7 +1222,7 @@ class Contract(gl.Contract):
 
     @gl.public.view
     def get_audit(self, audit_id: int) -> str:
-        audit_key = u256(max(audit_id, 0))
+        audit_key = str(int(max(audit_id, 0)))
         if audit_key not in self.audit_agent_of:
             return "{}"
         return json.dumps(self._serialize_audit(int(audit_key)))
@@ -1216,7 +1233,7 @@ class Contract(gl.Contract):
 
     @gl.public.view
     def get_appeal(self, appeal_id: int) -> str:
-        appeal_key = u256(max(appeal_id, 0))
+        appeal_key = str(int(max(appeal_id, 0)))
         if appeal_key not in self.appeal_agent_of:
             return "{}"
         return json.dumps(self._serialize_appeal(int(appeal_key)))
@@ -1237,16 +1254,16 @@ class Contract(gl.Contract):
 
     @gl.public.view
     def get_watchlist(self, watchlist_id: int) -> str:
-        watchlist_key = u256(max(watchlist_id, 0))
+        watchlist_key = str(int(max(watchlist_id, 0)))
         if watchlist_key not in self.watchlist_owner_of:
             return "{}"
         return json.dumps(
             {
                 "id": watchlist_id,
-                "owner": str(self.watchlist_owner_of[watchlist_key]),
-                "name": self.watchlist_name_of[watchlist_key],
-                "agents": json.loads(self.watchlist_agents_of[watchlist_key]),
-                "subscriber_count": int(self.watchlist_subscriber_count_of[watchlist_key]),
+                "owner": str(self.watchlist_owner_of[str(int(watchlist_key))]),
+                "name": self.watchlist_name_of[str(int(watchlist_key))],
+                "agents": json.loads(self.watchlist_agents_of[str(int(watchlist_key))]),
+                "subscriber_count": int(self.watchlist_subscriber_count_of[str(int(watchlist_key))]),
             }
         )
 
@@ -1275,12 +1292,12 @@ class Contract(gl.Contract):
         return int(self.penalty_pool)
 
     @gl.public.view
-    def get_pending_balance(self, owner) -> int:
+    def get_pending_balance(self, owner: str) -> int:
         address = self._to_address(owner)
         return self._u256_or_zero(self.pending_balance_of, address)
 
     @gl.public.view
-    def get_reporter_stats(self, owner) -> str:
+    def get_reporter_stats(self, owner: str) -> str:
         address = self._to_address(owner)
         return json.dumps(self._serialize_reporter(address))
 
@@ -1293,7 +1310,7 @@ class Contract(gl.Contract):
         reporters: list[dict[str, object]] = []
         index = 1
         while index <= int(self.reporter_count):
-            reporter_address = self.reporter_address_of[u256(index)]
+            reporter_address = self.reporter_address_of[str(int(index))]
             reporters.append(self._serialize_reporter(reporter_address))
             index += 1
 

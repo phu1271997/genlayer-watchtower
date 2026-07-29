@@ -30,6 +30,24 @@
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+html[data-theme="light"] {
+  --bg-primary: #f3f1eb;
+  --bg-secondary: #fffaf0;
+  --bg-card: rgba(255, 248, 238, 0.88);
+  --bg-card-hover: rgba(255, 244, 231, 0.96);
+  --border-color: rgba(79, 56, 38, 0.12);
+  --border-glow: rgba(0, 123, 167, 0.18);
+  --text-main: #1f2933;
+  --text-muted: #64748b;
+  --text-dark: #8b6f5a;
+  --accent-blue: #007ba7;
+  --accent-purple: #b65fcf;
+  --accent-pink: #d1495b;
+  --accent-green: #248f5a;
+  --accent-red: #c0392b;
+  --accent-yellow: #c77d1a;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -53,6 +71,7 @@ body {
   max-width: 1400px;
   margin: 0 auto;
   padding: 2rem 1.5rem;
+  animation: fadeIn 0.45s ease;
 }
 
 /* Header */
@@ -129,6 +148,32 @@ body {
   }
 }
 
+@media (max-width: 768px) {
+  .app-container {
+    padding: 1rem;
+  }
+
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .brand-section h1 {
+    font-size: 1.75rem;
+    flex-wrap: wrap;
+  }
+
+  .contract-info {
+    text-align: left;
+    width: 100%;
+  }
+
+  .action-box-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* Sidebar & General Cards */
 .card {
   background: var(--bg-card);
@@ -143,6 +188,17 @@ body {
 
 .card:hover {
   border-color: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .card-title {

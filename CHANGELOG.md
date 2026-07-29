@@ -1,5 +1,24 @@
 # Changelog
 
+## [v2.M7] - Frontend Overhaul + Demo Mode + Live Feed - 2026-06-21
+### Added
+- Theme toggle with persisted dark/light preference.
+- Demo mode banner and live audit feed via `?demo=1`.
+- Wallet, penalty pool, loading skeleton, live feed, toasts, and timeline components.
+- Hooks for wallet state and live audit feed shaping.
+
+### Changed
+- Large dashboard sections are now split into focused UI components instead of living entirely inside one render block.
+- Mobile layout behavior and page-load polish are improved.
+
+### Fixed
+- Operator feedback is now visible during long audit runs through skeleton phases and transient toast notifications.
+
+### Evidence
+- before/after screenshots: `docs/evidence/m7/`
+- tests added: existing suite reused; frontend verified through `npm run build`
+- quantifiable metric: the UI now exposes theme, demo feed, timeline, and toast/skeleton feedback without changing contract semantics
+
 ## [v2.M5] - Multi-Token Bonds + Network Effects - 2026-06-21
 ### Added
 - ERC20-style bond registration, top-up, and token claim flows.
