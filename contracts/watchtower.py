@@ -683,14 +683,14 @@ class Contract(gl.Contract):
         return self.mandate_template_of[normalized]
 
     @gl.public.write
-    def add_supported_token(self, token) -> bool:
+    def add_supported_token(self, token: str) -> bool:
         self._require_admin()
         token_address = self._to_address(token)
         self.supported_bond_tokens[self._akey(token_address)] = True
         return True
 
     @gl.public.write
-    def remove_supported_token(self, token) -> bool:
+    def remove_supported_token(self, token: str) -> bool:
         self._require_admin()
         token_address = self._to_address(token)
         self.supported_bond_tokens[self._akey(token_address)] = False
@@ -703,7 +703,7 @@ class Contract(gl.Contract):
         mandate: str,
         evidence_url: str,
         category: str,
-        token,
+        token: str,
         amount: int,
         agent_wallet_address: str = "",
         github_repo: str = "",
@@ -762,7 +762,7 @@ class Contract(gl.Contract):
         return json.dumps(self._serialize_agent(agent_id))
 
     @gl.public.write
-    def claim_token(self, token) -> int:
+    def claim_token(self, token: str) -> int:
         token_address = self._to_address(token)
         balance_key = self._token_balance_key(token_address, gl.message.sender_address)
         amount = self._u256_or_zero(self.pending_balance_token_of, balance_key)
@@ -827,7 +827,7 @@ class Contract(gl.Contract):
         return int(self.watchlist_subscriber_count_of[str(int(watchlist_key))])
 
     @gl.public.write
-    def withdraw_penalty_pool(self, to, amount: int) -> int:
+    def withdraw_penalty_pool(self, to: str, amount: int) -> int:
         self._require_admin()
         destination = self._to_address(to)
         withdraw_amount = int(amount)
@@ -1292,12 +1292,12 @@ class Contract(gl.Contract):
         return int(self.penalty_pool)
 
     @gl.public.view
-    def get_pending_balance(self, owner) -> int:
+    def get_pending_balance(self, owner: str) -> int:
         address = self._to_address(owner)
         return self._u256_or_zero(self.pending_balance_of, address)
 
     @gl.public.view
-    def get_reporter_stats(self, owner) -> str:
+    def get_reporter_stats(self, owner: str) -> str:
         address = self._to_address(owner)
         return json.dumps(self._serialize_reporter(address))
 
