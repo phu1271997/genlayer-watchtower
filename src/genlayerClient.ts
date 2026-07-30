@@ -1,7 +1,7 @@
 import { createClient, createAccount, generatePrivateKey } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 
-export const CONTRACT_ADDRESS = (import.meta.env.VITE_WATCHTOWER_CONTRACT_ADDRESS || "0xff68DDb4bdb10DFf50E28F20f33F38cA9f8bc106") as `0x${string}`;
+export const CONTRACT_ADDRESS = (import.meta.env.VITE_WATCHTOWER_CONTRACT_ADDRESS || "0xc6cD7A2c37De0B18b875D27BE575A5E7E34C3c35") as `0x${string}`;
 export const RPC_URL = import.meta.env.VITE_GENLAYER_RPC_URL || "https://studio.genlayer.com/api";
 
 export const WATCHTOWER_METHODS = {
