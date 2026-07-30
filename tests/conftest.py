@@ -165,6 +165,19 @@ class FakeGenLayerEnv:
         self.gl.vm = FakeVM(self)
         self.gl.eq_principle = FakeEqPrinciple(self)
         self.gl.evm = FakeEvm(self)
+        self.gl.contract_interface = FakeEvm(self).contract_interface
+        env_ref = self
+
+        class _RecipientProxy:
+            def __init__(self, address):
+                self.address = FakeAddress(address)
+
+            def emit_transfer(self, value):
+                env_ref.transfers.append(
+                    {"to": str(self.address), "value": int(value), "on": "finalized"}
+                )
+
+        self.gl.get_contract_at = lambda address: _RecipientProxy(address)
 
     def install(self):
         module = types.ModuleType("genlayer")

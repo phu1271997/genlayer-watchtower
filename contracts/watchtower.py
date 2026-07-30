@@ -1,14 +1,6 @@
-# v0.2.16
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
-# Determinism fixes:
-#   - _now_u256 sources time from gl.message_raw['datetime'] (deterministic per transaction)
-#     instead of Python time.time() (validator-local, non-deterministic).
-#   - evaluate_appeal now routes the appeal verdict through gl.eq_principle.prompt_comparative
-#     so validators must agree on overturned/verdict/severity/slash_ratio, not just the
-#     leader's raw output.
 from genlayer import *
 import json
-import re
 
 
 _VERDICTS = {"COMPLIANT", "WARNING", "VIOLATION"}
@@ -148,6 +140,7 @@ def _sanitize_user_text(value: str, max_len: int) -> str:
 
 
 def _extract_keywords(text: str) -> set[str]:
+    import re
     keywords: set[str] = set()
     for word in re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{4,}", text.lower()):
         if word in _STOP_WORDS:
@@ -159,6 +152,7 @@ def _extract_keywords(text: str) -> set[str]:
 
 
 def _extract_artifact_tokens(text: str) -> set[str]:
+    import re
     tokens: set[str] = set()
     lowered = text.lower()
     for item in re.findall(r"0x[a-f0-9]{6,64}", lowered):
@@ -234,12 +228,7 @@ def _reports_semantically_agree(left_payload, right_payload, mandate_keywords: s
     return False
 
 
-@gl.evm.contract_interface
-class _Recipient:
-    def emit_transfer(self, value: u256, on: str = "finalized"): ...
-
-
-@gl.evm.contract_interface
+@gl.contract_interface
 class _ERC20:
     def transfer(self, to: Address, amount: u256) -> bool: ...
 
@@ -867,7 +856,7 @@ class Contract(gl.Contract):
             self._user_error("nothing to claim")
 
         self.pending_balance_of[self._akey(recipient)] = u256(0)
-        _Recipient(recipient).emit_transfer(value=u256(amount), on="finalized")
+        gl.get_contract_at(recipient).emit_transfer(value=u256(amount))
         return amount
 
     @gl.public.write
